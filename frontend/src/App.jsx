@@ -7,7 +7,7 @@ import ScenarioSimulator from './components/ScenarioSimulator';
 import WhyPanel from './components/WhyPanel';
 import './App.css';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 function App() {
   const [activeScreen, setActiveScreen] = useState('decision');

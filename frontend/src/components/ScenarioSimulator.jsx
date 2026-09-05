@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
 const ScenarioSimulator = ({ onRunScenario }) => {
   const [params, setParams] = useState({
     cargo_quantity: 75000,
@@ -24,7 +26,7 @@ const ScenarioSimulator = ({ onRunScenario }) => {
   const runScenario = async (scenario) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/scenario', {
+      const response = await fetch(`${API_BASE}/scenario`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
