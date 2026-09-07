@@ -4,10 +4,17 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 from datetime import date, datetime
 from sqlalchemy.orm import Session
+from contextlib import asynccontextmanager
 import pandas as pd
 import json
 import sys
 import os
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -106,8 +113,71 @@ class RecommendationAction(BaseModel):
     notes: Optional[str] = None
 
 
-@app.on_event("startup")
-async def startup():
+_scheduler = None
+
+
+def _start_background_sync():
+    """APScheduler (in-process, $0): daily freight/bunker, weekly commodities,
+    hourly AIS-derived congestion snapshot. All jobs fail soft."""
+    global _scheduler
+    if os.getenv("SYNC_DAILY", "true").lower() not in ("1", "true", "yes"):
+        print("[SYNC] SYNC_DAILY disabled — scheduler skipped.")
+        return
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+    except Exception as e:
+        print(f"[SYNC] apscheduler not installed ({e}) — scheduler skipped.")
+        return
+    if _scheduler is not None:
+        return
+    try:
+        from data import sync_service
+
+        def _job_all():
+            try:
+                print("[SYNC] scheduled sync_all starting...")
+                print(sync_service.sync_all())
+            except Exception as e:
+                print(f"[SYNC] scheduled sync failed: {e}")
+
+        def _job_congestion():
+            try:
+                from data.connectors.ais_worker import (
+                    get_live_port_metrics, get_live_vessel_updates,
+                )
+                n = sync_service.sync_congestion_from_live_metrics(get_live_port_metrics())
+                sync_service.sync_vessel_positions(get_live_vessel_updates())
+                if n:
+                    print(f"[SYNC] congestion snapshot upserted: {n} rows")
+            except Exception as e:
+                print(f"[SYNC] congestion job skipped: {e}")
+
+        _scheduler = BackgroundScheduler(daemon=True)
+        _scheduler.add_job(_job_all, "interval", hours=24, id="daily_all", replace_existing=True)
+        _scheduler.add_job(_job_congestion, "interval", hours=1, id="hourly_congestion", replace_existing=True)
+        _scheduler.start()
+        print("[SYNC] scheduler started (daily all, hourly congestion).")
+    except Exception as e:
+        print(f"[SYNC] scheduler start failed: {e}")
+
+
+def _maybe_start_ais():
+    try:
+        from data.connectors.ais_worker import start_ais_worker
+        from database.postgres import SessionLocal as _SL
+        from database.models_db import Vessel as _V
+        db = _SL()
+        try:
+            mmsis = [r[0] for r in db.query(_V.mmsi).filter(_V.mmsi.isnot(None)).limit(100).all()]
+        finally:
+            db.close()
+        start_ais_worker([m for m in mmsis if m])
+    except Exception as e:
+        print(f"[AIS] worker start skipped: {e}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     try:
         init_db()
         from database.postgres import SessionLocal
@@ -115,7 +185,7 @@ async def startup():
         count = db.query(FreightRate).count()
         db.close()
         if count == 0:
-            print("[STARTUP] Empty database — seeding synthetic data...")
+            print("[STARTUP] Empty database — seeding synthetic baseline...")
             from data.ingestion import seed_database
             seed_database()
             print("[STARTUP] Seeding complete.")
@@ -123,6 +193,29 @@ async def startup():
             print(f"[STARTUP] Database has {count} freight rate records — skipping seed.")
     except Exception as e:
         print(f"[STARTUP] Error: {e}")
+    # Reconfigure-only addition: opportunistic $0 live sync + background jobs.
+    try:
+        if os.getenv("SYNC_ON_BOOT", "true").lower() in ("1", "true", "yes"):
+            from data import sync_service
+            print(f"[STARTUP] SYNC_ON_BOOT sync: {sync_service.sync_all()}")
+        _maybe_start_ais()
+        _start_background_sync()
+    except Exception as e:
+        print(f"[STARTUP] live-sync skipped: {e}")
+    yield
+    try:
+        if _scheduler is not None:
+            _scheduler.shutdown(wait=False)
+    except Exception:
+        pass
+    try:
+        from data.connectors.ais_worker import stop_ais_worker
+        stop_ais_worker()
+    except Exception:
+        pass
+
+
+app.router.lifespan_context = lifespan
 
 
 @app.get("/")
@@ -139,7 +232,9 @@ async def root():
             "recommendation": "/api/recommendation",
             "vessels": "/api/vessels",
             "ports": "/api/ports",
-            "health": "/api/health"
+            "health": "/api/health",
+            "sync": "/api/sync",
+            "data_status": "/api/data-status"
         }
     }
 
@@ -410,7 +505,8 @@ async def optimize(request: OptimizationRequest, db: Session = Depends(get_db)):
             port_congestion=avg_congestion,
             port_avg_delay=avg_delay,
             avg_bunker_price=bunker_avg,
-            required_voyages=request.required_voyages
+            required_voyages=request.required_voyages,
+            congestion_df=congestion_df
         )
 
         rec = Recommendation(
@@ -616,6 +712,74 @@ async def get_congestion(
         "summary": summary,
         "recent_data": recent[["date", "congestion_index", "expected_delay_hours", "vessels_waiting"]].to_dict(orient="records")
     }
+
+
+@app.post("/api/sync")
+async def trigger_sync(dataset: Optional[str] = Query(default=None)):
+    """Manual $0 live-sync trigger. ?dataset=freight|bunker|commodities|congestion (omit = all)."""
+    try:
+        from data import sync_service
+        if dataset:
+            return to_serializable(sync_service.sync_dataset(dataset))
+        return to_serializable(sync_service.sync_all())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/data-status")
+async def data_status(db: Session = Depends(get_db)):
+    """Freshness per dataset for Linear-style Live/Stale badges. Never fails hard."""
+    from database.models_db import SyncRun
+    from sqlalchemy import func as _func
+    out: Dict = {"datasets": {}, "ais": {}}
+    try:
+        specs = {
+            "freight": (FreightRate, "freight_rates"),
+            "bunker": (None, "bunker_prices"),
+            "commodities": (None, "commodity_prices"),
+            "congestion": (PortCongestion, "port_congestion"),
+        }
+        for name, (model, table) in specs.items():
+            try:
+                from sqlalchemy import text as _text
+                total = int(db.execute(_text(f"SELECT COUNT(*) FROM {table}")).scalar() or 0)
+                try:
+                    live = int(db.execute(
+                        _text(f"SELECT COUNT(*) FROM {table} WHERE source LIKE 'live/%'")
+                    ).scalar() or 0)
+                except Exception:
+                    live = 0
+                try:
+                    last = db.execute(
+                        _text(f"SELECT MAX(fetched_at) FROM {table}")
+                    ).scalar()
+                    last_iso = last.isoformat() if hasattr(last, "isoformat") else (str(last) if last else None)
+                except Exception:
+                    last_iso = None
+                last_run = db.query(SyncRun).filter(SyncRun.dataset == name)\
+                    .order_by(SyncRun.id.desc()).first()
+                out["datasets"][name] = {
+                    "total_rows": total,
+                    "live_rows": live,
+                    "last_fetched_at": last_iso,
+                    "last_status": last_run.status if last_run else None,
+                    "last_error": (last_run.error[:300] if last_run and last_run.error else None),
+                    "stale": (live == 0),
+                    "source": "live" if live > 0 else "synthetic",
+                }
+            except Exception as e:
+                out["datasets"][name] = {"error": str(e), "stale": True, "source": "synthetic"}
+        try:
+            from data.connectors.ais_worker import _last_msg_time
+            out["ais"] = {
+                "worker_running": bool(_last_msg_time),
+                "last_message_ago_s": round(__import__("time").time() - _last_msg_time, 1) if _last_msg_time else None,
+            }
+        except Exception:
+            out["ais"] = {"worker_running": False}
+    except Exception as e:
+        out["error"] = str(e)
+    return to_serializable(out)
 
 
 @app.post("/api/backtest")

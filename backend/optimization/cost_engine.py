@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from datetime import date, timedelta
+import os
 import numpy as np
 
 
@@ -167,8 +168,12 @@ class CostEngine:
             effective_rate = contract_rate * discount
 
             voyage_costs = []
+            # Reconfigure: deterministic when live data is in play so identical
+            # requests return identical comparisons; keep legacy jitter only for
+            # pure-synthetic runs via opt-in env flag.
+            _jitter = os.getenv("COST_JITTER_SYNTHETIC", "false").lower() in ("1", "true", "yes")
             for v in range(num_voyages):
-                rate_drift = np.random.normal(0, 0.5) * (v / num_voyages)
+                rate_drift = (np.random.normal(0, 0.5) * (v / num_voyages)) if _jitter else 0.0
                 adjusted_rate = effective_rate + rate_drift
                 voyage_cost = self.calculate_total_cost(
                     adjusted_rate, cargo_quantity, vessel, port_name, origin,

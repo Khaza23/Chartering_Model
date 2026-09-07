@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import DataStatus from './components/DataStatus';
 import ExecutiveDecision from './components/ExecutiveDecision';
 import ForecastView from './components/ForecastView';
 import VesselComparison from './components/VesselComparison';
@@ -17,6 +18,14 @@ function App() {
   const [feasibility, setFeasibility] = useState(null);
   const [costData, setCostData] = useState(null);
   const [error, setError] = useState(null);
+  const [dataStatus, setDataStatus] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/data-status`)
+      .then(r => r.json())
+      .then(setDataStatus)
+      .catch(() => {});
+  }, []);
 
   const runAnalysis = async (params) => {
     setLoading(true);
@@ -94,13 +103,20 @@ function App() {
           ))}
         </div>
         <div className="nav-right">
-          <span className="status-dot" />
-          <span className="status-text">System Online</span>
+          <DataStatus status={dataStatus} compact />
         </div>
       </nav>
 
       <main className="main-content">
         {error && <div className="error-banner">{error}</div>}
+        {dataStatus && Object.values(dataStatus.datasets || {}).some(d => d && d.stale) && (
+          <div className="stale-banner" role="status">
+            <strong>Using seeded baseline for some datasets.</strong>{' '}
+            Add free keys (FRED, EIA, Stooq, AISStream) and POST /api/sync to go live.
+            Route $/t is a BDI-scaled proxy and vessel availability is AIS-derived.
+          </div>
+        )}
+        {dataStatus && <DataStatus status={dataStatus} />}
 
         {activeScreen === 'decision' && (
           <ExecutiveDecision

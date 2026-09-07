@@ -167,6 +167,8 @@ def generate_vessels():
         avail_start = date(2025, 1, 1) + timedelta(days=np.random.randint(0, 60))
         avail_end = avail_start + timedelta(days=np.random.randint(180, 365))
 
+        # Deterministic demo IMO/MMSI so AISStream FiltersShipMMSI can track them.
+        # Real IMO/MMSI mapping should replace these when known.
         vessels.append({
             "name": name,
             "vessel_class": vc,
@@ -179,6 +181,9 @@ def generate_vessels():
             "speed_knots": round(np.random.uniform(12.0, 15.5), 1),
             "fuel_consumption_tons_per_day": round(np.random.uniform(25.0, 45.0), 1),
             "daily_hire_rate": round(np.random.uniform(12000, 25000), 0),
+            "imo": str(9000000 + i),
+            "mmsi": str(400000000 + i),
+            "availability_proxy": "unknown",
         })
 
     return vessels

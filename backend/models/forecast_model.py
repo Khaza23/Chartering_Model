@@ -29,8 +29,18 @@ class FreightForecaster:
 
     def train(self, df: pd.DataFrame, route: str, vessel_class: str):
         route_df = df[(df["route"] == route) & (df["vessel_class"] == vessel_class)].copy()
-        if len(route_df) < 30:
+        # Reconfigure: live feeds have weekend/holiday gaps (no Baltic assessment).
+        # Keep a usable fallback instead of 500ing on sparse windows.
+        if len(route_df) < 7:
             raise ValueError(f"Insufficient data for {route}/{vessel_class}: {len(route_df)} rows")
+        if len(route_df) < 30:
+            # Small-sample path: skip Prophet seasonality, rely on naive/XGBoost.
+            route_df = route_df.sort_values("date").reset_index(drop=True)
+            self.prophet_model = None
+            self._train_xgboost(route_df)
+            self.prophet_weight = 0.0
+            self.xgboost_weight = 1.0 if self.xgboost_model is not None else 0.0
+            return self
 
         route_df = route_df.sort_values("date").reset_index(drop=True)
         self._train_prophet(route_df)

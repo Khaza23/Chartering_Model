@@ -47,7 +47,8 @@ class CharteringOptimizer:
         port_congestion: float = 30.0,
         port_avg_delay: float = 12.0,
         avg_bunker_price: float = 400.0,
-        required_voyages: int = 6
+        required_voyages: int = 6,
+        congestion_df=None,
     ) -> OptimizationResult:
         feasible_vessels = self.feasibility_engine.filter_vessels(
             vessels_df, ports_df, cargo_quantity, laycan_start, laycan_end, origin, destination
@@ -56,8 +57,23 @@ class CharteringOptimizer:
         if not feasible_vessels:
             return self._no_feasible_solution()
 
+        # Reconfigure: prefer real congestion history (incl. live/aisstream rows)
+        # for the destination; fall back to stub only when empty/missing.
+        _congestion_frame = congestion_df
+        try:
+            if _congestion_frame is not None and not _congestion_frame.empty:
+                _dest = _congestion_frame[_congestion_frame["port_name"] == destination]
+                if _dest.empty:
+                    _congestion_frame = self._get_congestion_stub(destination)
+                else:
+                    _congestion_frame = _dest.tail(30)
+            else:
+                _congestion_frame = self._get_congestion_stub(destination)
+        except Exception:
+            _congestion_frame = self._get_congestion_stub(destination)
+
         port_scores = self.feasibility_engine.score_port_feasibility(
-            ports_df, self._get_congestion_stub(destination), feasible_vessels[0]
+            ports_df, _congestion_frame, feasible_vessels[0]
         )
 
         best_vessel = feasible_vessels[0]

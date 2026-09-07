@@ -38,7 +38,8 @@ class FreightRate(Base):
     route = Column(String(100), nullable=False, index=True)
     vessel_class = Column(String(50), nullable=False, index=True)
     rate_usd_per_ton = Column(Float, nullable=False)
-    source = Column(String(100))
+    source = Column(String(100), default="synthetic")
+    fetched_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (
         Index("ix_freight_route_date", "route", "date"),
@@ -54,6 +55,8 @@ class CommodityPrice(Base):
     steel_price = Column(Float)
     iron_ore_price = Column(Float)
     index_value = Column(Float)
+    source = Column(String(100), default="synthetic")
+    fetched_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (
         UniqueConstraint("date", name="uq_commodity_date"),
@@ -68,6 +71,8 @@ class BunkerPrice(Base):
     port = Column(String(100), nullable=False, index=True)
     vlsfo_price = Column(Float)
     mgo_price = Column(Float)
+    source = Column(String(100), default="synthetic")
+    fetched_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (
         Index("ix_bunker_port_date", "port", "date"),
@@ -106,6 +111,15 @@ class Vessel(Base):
     speed_knots = Column(Float)
     fuel_consumption_tons_per_day = Column(Float)
     daily_hire_rate = Column(Float)
+    # Live AIS-derived fields ($0 proxy, not commercial fixture data)
+    imo = Column(String(20), nullable=True)
+    mmsi = Column(String(20), nullable=True)
+    last_lat = Column(Float, nullable=True)
+    last_lon = Column(Float, nullable=True)
+    last_ais_at = Column(DateTime, nullable=True)
+    destination_raw = Column(String(100), nullable=True)
+    eta_raw = Column(String(100), nullable=True)
+    availability_proxy = Column(String(50), nullable=True)  # open | laden | unknown
 
 
 class PortCongestion(Base):
@@ -117,6 +131,8 @@ class PortCongestion(Base):
     congestion_index = Column(Float)  # 0-100
     expected_delay_hours = Column(Float)
     vessels_waiting = Column(Integer)
+    source = Column(String(100), default="synthetic")
+    fetched_at = Column(DateTime, server_default=func.now())
 
     port = relationship("Port", back_populates="congestion_records")
 
@@ -193,3 +209,17 @@ class Recommendation(Base):
     model_version = Column(String(50))
     user_action = Column(String(50))  # approve/modify/reject
     user_notes = Column(Text)
+
+
+class SyncRun(Base):
+    """Audit log for $0 live-sync jobs. Powers GET /api/data-status."""
+
+    __tablename__ = "sync_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    dataset = Column(String(50), nullable=False, index=True)
+    started_at = Column(DateTime, server_default=func.now())
+    finished_at = Column(DateTime, nullable=True)
+    status = Column(String(20), default="success")  # success | failed | skipped
+    rows_upserted = Column(Integer, default=0)
+    error = Column(Text, nullable=True)
