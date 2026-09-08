@@ -1,15 +1,15 @@
-"""Freight: Stooq BDI daily (free-registration key) → route $/MT proxy.
+"""Freight: BDRY ETF via yfinance (free, no API key) → route $/MT proxy.
 
-No free API publishes Australia-Paradip Panamax $/t directly, so this keeps
-the existing route_premiums/base_rates scaling from ingestion.py and drives
-it with the real Baltic Dry Index close. Honest proxy, labelled live/stooq.
+BDRY tracks dry bulk shipping rates (correlates with BDI). No free API publishes
+Australia-Paradip Panamax $/t directly, so this keeps the existing
+route_premiums/base_rates scaling from ingestion.py and drives it with BDRY
+close as a BDI proxy. Labelled live/yfinance.
 """
 
-import os
-from datetime import date, timedelta
 import pandas as pd
+from datetime import date, timedelta
 
-from .base import http_get, parse_csv_rows
+from .base import cache_read, cache_write
 
 ROUTES = [
     "Australia-Paradip", "Australia-Dhamra", "Australia-Gangavaram",
@@ -23,43 +23,49 @@ ROUTE_PREMIUMS = {
     "Australia-Vizag": 1.0, "South Africa-Paradip": 3.5, "Indonesia-Paradip": -2.0,
     "Australia-Mundra": 2.5, "Indonesia-Mundra": -1.0,
 }
-# Calibrated once: BDI ~1500 ≈ panamax Australia-Paradip ~$18-22/t.
-BDI_REFERENCE = float(os.getenv("BDI_REFERENCE", "1500"))
-BDI_SENSITIVITY = float(os.getenv("BDI_SENSITIVITY", "0.006"))  # $/t per BDI point
+# BDRY ETF ~$15 correlates to BDI ~1500 (scale factor ~100x).
+BDI_SENSITIVITY = 0.006  # $/t per BDI-equivalent point
+
+BDI_TICKER = "BDRY"
+BDI_REFERENCE = 1500.0  # reference BDI level for calibration
+BDRY_TO_BDI_SCALE = 100.0  # BDRY * 100 ≈ BDI equivalent
+CACHE_KEY = "yfinance_bdi_daily"
+CACHE_HOURS = 20
 
 
 def fetch_bdi_daily(days: int = 120) -> pd.DataFrame:
-    """Returns DataFrame(date, bdi). Empty DF when key missing/quota hit."""
-    api_key = os.getenv("STOOQ_KEY", "").strip()
-    if not api_key:
-        return pd.DataFrame()
-    end = date.today()
-    start = end - timedelta(days=days)
-    d1 = start.strftime("%Y%m%d")
-    d2 = end.strftime("%Y%m%d")
-    text, _ = http_get(
-        "https://stooq.com/q/d/l/",
-        params={"s": "bdi", "i": "d", "d1": d1, "d2": d2, "apikey": api_key},
-        timeout=25,
-        cache_key="stooq_bdi_daily",
-        cache_hours=20,  # respect daily quota: at most ~1 live call/day
-    )
-    if not text or "Exceeded the daily hits limit" in text:
-        return pd.DataFrame()
-    rows = parse_csv_rows(text)
-    records = []
-    for r in rows:
+    """Returns DataFrame(date, bdi). bdi column is BDI-equivalent scaled from BDRY. Empty DF on failure."""
+    hit = cache_read(CACHE_KEY, CACHE_HOURS)
+    if hit and isinstance(hit, dict) and "data" in hit:
         try:
-            close = float(r.get("Close") or 0)
-            if close <= 0:
-                continue
-            records.append({"date": pd.to_datetime(r["Date"]).date(), "bdi": round(close, 1)})
+            df = pd.DataFrame(hit["data"])
+            if not df.empty:
+                df["date"] = pd.to_datetime(df["date"]).dt.date
+                return df
         except Exception:
-            continue
-    df = pd.DataFrame(records)
-    if not df.empty:
-        df = df.sort_values("date").reset_index(drop=True)
-    return df
+            pass
+
+    try:
+        import yfinance as yf
+        end = date.today()
+        start = end - timedelta(days=days)
+        ticker = yf.Ticker(BDI_TICKER)
+        hist = ticker.history(start=start.isoformat(), end=end.isoformat())
+        if hist.empty:
+            return pd.DataFrame()
+        # Scale BDRY close to BDI-equivalent (BDRY ~$15 = BDI ~1500)
+        bdi_equivalent = hist["Close"] * BDRY_TO_BDI_SCALE
+        df = pd.DataFrame({
+            "date": hist.index.date,
+            "bdi": bdi_equivalent.round(1).values,
+        })
+        df = df[df["bdi"] > 0].sort_values("date").reset_index(drop=True)
+        if not df.empty:
+            cache_write(CACHE_KEY, {"data": df.to_dict(orient="records")})
+        return df
+    except Exception as e:
+        print(f"[yfinance] BDI fetch failed: {e}")
+        return pd.DataFrame()
 
 
 def to_route_rates(bdi_df: pd.DataFrame) -> pd.DataFrame:
@@ -77,6 +83,6 @@ def to_route_rates(bdi_df: pd.DataFrame) -> pd.DataFrame:
                     "route": route,
                     "vessel_class": vc,
                     "rate_usd_per_ton": round(rate, 2),
-                    "source": "live/stooq-bdi",
+                    "source": "live/yfinance-bdi",
                 })
     return pd.DataFrame(records)

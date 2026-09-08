@@ -28,6 +28,10 @@ from data.preprocessing import (
     load_congestion, load_vessels, load_ports, load_contracts,
     load_cargo_requirements, create_features
 )
+from data.realtime_fetcher import (
+    fetch_freight_realtime, fetch_commodity_realtime, fetch_bunker_realtime,
+    fetch_congestion_realtime, fetch_vessels_realtime, fetch_all_realtime
+)
 from models.forecast_model import FreightForecaster
 from optimization.feasibility import FeasibilityEngine
 from optimization.cost_engine import CostEngine
@@ -191,6 +195,24 @@ async def lifespan(app: FastAPI):
             print("[STARTUP] Seeding complete.")
         else:
             print(f"[STARTUP] Database has {count} freight rate records — skipping seed.")
+        # Backfill demo IMO/MMSI for vessels seeded before the AIS reconfigure.
+        try:
+            from database.models_db import Vessel
+            db2 = SessionLocal()
+            try:
+                updated = 0
+                for i, v in enumerate(db2.query(Vessel).filter(Vessel.mmsi.is_(None)).order_by(Vessel.vessel_id).all()):
+                    v.imo = v.imo or str(9000000 + (v.vessel_id or i))
+                    v.mmsi = str(400000000 + (v.vessel_id or i))
+                    v.availability_proxy = v.availability_proxy or "unknown"
+                    updated += 1
+                if updated:
+                    db2.commit()
+                    print(f"[STARTUP] Backfilled IMO/MMSI for {updated} vessels.")
+            finally:
+                db2.close()
+        except Exception as e:
+            print(f"[STARTUP] IMO/MMSI backfill skipped: {e}")
     except Exception as e:
         print(f"[STARTUP] Error: {e}")
     # Reconfigure-only addition: opportunistic $0 live sync + background jobs.
@@ -252,12 +274,12 @@ async def health_check(db: Session = Depends(get_db)):
 @app.post("/api/forecast")
 async def get_forecast(request: ForecastRequest, db: Session = Depends(get_db)):
     try:
-        freight_df = load_freight_rates(db, route=request.route, vessel_class=request.vessel_class)
+        freight_df = fetch_freight_realtime(db, route=request.route, vessel_class=request.vessel_class)
         if freight_df.empty:
             raise HTTPException(status_code=404, detail="No freight data found")
 
-        commodity_df = load_commodity_prices(db)
-        bunker_df = load_bunker_prices(db)
+        commodity_df = fetch_commodity_realtime(db)
+        bunker_df = fetch_bunker_realtime(db)
 
         featured_df = create_features(freight_df, commodity_df, bunker_df)
 
@@ -317,9 +339,9 @@ async def get_forecast(request: ForecastRequest, db: Session = Depends(get_db)):
 @app.post("/api/feasibility")
 async def get_feasibility(request: FeasibilityRequest, db: Session = Depends(get_db)):
     try:
-        vessels_df = load_vessels(db)
+        vessels_df = fetch_vessels_realtime(db)
         ports_df = load_ports(db)
-        congestion_df = load_congestion(db)
+        congestion_df = fetch_congestion_realtime(db)
 
         engine = FeasibilityEngine()
         feasible_vessels = engine.filter_vessels(
@@ -377,7 +399,7 @@ async def get_feasibility(request: FeasibilityRequest, db: Session = Depends(get
 @app.post("/api/cost")
 async def get_cost(request: CostRequest, db: Session = Depends(get_db)):
     try:
-        vessels_df = load_vessels(db)
+        vessels_df = fetch_vessels_realtime(db)
         vessel_row = vessels_df[vessels_df["vessel_id"] == request.vessel_id]
 
         if vessel_row.empty:
@@ -396,13 +418,23 @@ async def get_cost(request: CostRequest, db: Session = Depends(get_db)):
         else:
             vessel = vessel_row.iloc[0]
 
+        bunker_df = fetch_bunker_realtime(db)
+        avg_bunker = float(bunker_df["vlsfo_price"].mean()) if not bunker_df.empty else 400.0
+
+        congestion_df = fetch_congestion_realtime(db)
+        avg_congestion = float(congestion_df["congestion_index"].mean()) if not congestion_df.empty else 30.0
+        avg_delay = float(congestion_df["expected_delay_hours"].mean()) if not congestion_df.empty else 12.0
+
         cost_engine = CostEngine()
         cost = cost_engine.calculate_total_cost(
             freight_rate_per_ton=request.freight_rate,
             cargo_quantity=request.cargo_quantity,
             vessel=vessel,
             port_name=request.port_name,
-            origin=request.origin
+            origin=request.origin,
+            avg_bunker_price=avg_bunker,
+            avg_congestion_index=avg_congestion,
+            avg_delay_hours=avg_delay
         )
 
         contract_options = [
@@ -417,7 +449,9 @@ async def get_cost(request: CostRequest, db: Session = Depends(get_db)):
             vessel=vessel,
             port_name=request.port_name,
             origin=request.origin,
-            contract_options=contract_options
+            contract_options=contract_options,
+            avg_bunker_price=avg_bunker,
+            avg_congestion_index=avg_congestion
         )
 
         return to_serializable({
@@ -455,9 +489,9 @@ async def get_cost(request: CostRequest, db: Session = Depends(get_db)):
 @app.post("/api/optimize")
 async def optimize(request: OptimizationRequest, db: Session = Depends(get_db)):
     try:
-        freight_df = load_freight_rates(db, route=f"{request.origin}-{request.destination}")
-        commodity_df = load_commodity_prices(db)
-        bunker_df = load_bunker_prices(db)
+        freight_df = fetch_freight_realtime(db, route=f"{request.origin}-{request.destination}")
+        commodity_df = fetch_commodity_realtime(db)
+        bunker_df = fetch_bunker_realtime(db)
 
         featured_df = create_features(freight_df, commodity_df, bunker_df) if not freight_df.empty else pd.DataFrame()
 
@@ -480,10 +514,10 @@ async def optimize(request: OptimizationRequest, db: Session = Depends(get_db)):
             except Exception:
                 pass
 
-        vessels_df = load_vessels(db)
+        vessels_df = fetch_vessels_realtime(db)
         ports_df = load_ports(db)
         contracts_df = load_contracts(db)
-        congestion_df = load_congestion(db)
+        congestion_df = fetch_congestion_realtime(db)
 
         avg_congestion = float(congestion_df["congestion_index"].mean()) if not congestion_df.empty else 30
         avg_delay = float(congestion_df["expected_delay_hours"].mean()) if not congestion_df.empty else 12
@@ -554,9 +588,15 @@ async def optimize(request: OptimizationRequest, db: Session = Depends(get_db)):
 @app.post("/api/scenario")
 async def run_scenario(request: ScenarioRequest, db: Session = Depends(get_db)):
     try:
-        vessels_df = load_vessels(db)
+        vessels_df = fetch_vessels_realtime(db)
         ports_df = load_ports(db)
         contracts_df = load_contracts(db)
+        bunker_df = fetch_bunker_realtime(db)
+        congestion_df = fetch_congestion_realtime(db)
+
+        avg_congestion = float(congestion_df["congestion_index"].mean()) if not congestion_df.empty else 30
+        avg_delay = float(congestion_df["expected_delay_hours"].mean()) if not congestion_df.empty else 12
+        bunker_avg = float(bunker_df["vlsfo_price"].mean()) if not bunker_df.empty else 400
 
         base_forecast = {
             "forecast_value": request.base_params.current_freight_rate,
@@ -576,7 +616,11 @@ async def run_scenario(request: ScenarioRequest, db: Session = Depends(get_db)):
             "freight_forecast": base_forecast,
             "current_freight_rate": request.base_params.current_freight_rate,
             "contracts_df": contracts_df,
-            "required_voyages": request.base_params.required_voyages
+            "port_congestion": avg_congestion,
+            "port_avg_delay": avg_delay,
+            "avg_bunker_price": bunker_avg,
+            "required_voyages": request.base_params.required_voyages,
+            "congestion_df": congestion_df
         }
 
         scenario_mods = {}
@@ -632,11 +676,25 @@ async def get_recommendation(recommendation_id: int, db: Session = Depends(get_d
     if not rec:
         raise HTTPException(status_code=404, detail="Recommendation not found")
 
+    freight_df = fetch_freight_realtime(db)
+    commodity_df = fetch_commodity_realtime(db)
+    bunker_df = fetch_bunker_realtime(db)
+    congestion_df = fetch_congestion_realtime(db)
+    vessels_df = fetch_vessels_realtime(db)
+
+    current_freight = float(freight_df["rate_usd_per_ton"].iloc[-1]) if not freight_df.empty else 0
+    avg_bunker = float(bunker_df["vlsfo_price"].mean()) if not bunker_df.empty else 400
+    avg_congestion = float(congestion_df["congestion_index"].mean()) if not congestion_df.empty else 30
+
+    vessel_row = vessels_df[vessels_df["vessel_id"] == rec.vessel_id]
+    vessel_info = vessel_row.iloc[0].to_dict() if not vessel_row.empty else {}
+
     return {
         "id": rec.id,
         "created_at": rec.created_at.isoformat() if rec.created_at else None,
         "action": rec.action,
         "vessel_id": rec.vessel_id,
+        "vessel_info": vessel_info,
         "contract_type": rec.contract_type,
         "voyage_count": rec.voyage_count,
         "expected_cost_usd": rec.expected_cost_usd,
@@ -646,7 +704,12 @@ async def get_recommendation(recommendation_id: int, db: Session = Depends(get_d
         "expected_savings_usd": rec.expected_savings_usd,
         "reasoning": json.loads(rec.reasoning) if rec.reasoning else [],
         "user_action": rec.user_action,
-        "user_notes": rec.user_notes
+        "user_notes": rec.user_notes,
+        "live_market": {
+            "current_freight_rate": round(current_freight, 2),
+            "avg_bunker_price": round(avg_bunker, 2),
+            "avg_congestion_index": round(avg_congestion, 1),
+        }
     }
 
 
@@ -674,14 +737,32 @@ async def list_vessels(
     vessel_class: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    vessels_df = load_vessels(db, vessel_class=vessel_class)
+    vessels_df = fetch_vessels_realtime(db, vessel_class=vessel_class)
     return {"vessels": vessels_df.to_dict(orient="records"), "count": len(vessels_df)}
 
 
 @app.get("/api/ports")
 async def list_ports(db: Session = Depends(get_db)):
     ports_df = load_ports(db)
-    return {"ports": ports_df.to_dict(orient="records"), "count": len(ports_df)}
+    congestion_df = fetch_congestion_realtime(db)
+
+    ports_with_congestion = []
+    for _, port in ports_df.iterrows():
+        port_data = port.to_dict()
+        port_congestion = congestion_df[congestion_df["port_name"] == port["name"]]
+        if not port_congestion.empty:
+            recent = port_congestion.tail(7)
+            port_data["live_congestion"] = {
+                "congestion_index": round(float(recent["congestion_index"].mean()), 1),
+                "expected_delay_hours": round(float(recent["expected_delay_hours"].mean()), 1),
+                "vessels_waiting": int(recent["vessels_waiting"].mean()),
+                "source": recent["source"].iloc[-1] if "source" in recent.columns else "unknown"
+            }
+        else:
+            port_data["live_congestion"] = None
+        ports_with_congestion.append(port_data)
+
+    return {"ports": ports_with_congestion, "count": len(ports_with_congestion)}
 
 
 @app.get("/api/contracts")
@@ -695,7 +776,7 @@ async def get_congestion(
     port_name: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    congestion_df = load_congestion(db, port_name=port_name)
+    congestion_df = fetch_congestion_realtime(db, port_name=port_name)
     if congestion_df.empty:
         return {"congestion": [], "count": 0}
 
@@ -790,9 +871,9 @@ async def run_backtest(
     db: Session = Depends(get_db)
 ):
     try:
-        freight_df = load_freight_rates(db, route=route, vessel_class=vessel_class)
-        commodity_df = load_commodity_prices(db)
-        bunker_df = load_bunker_prices(db)
+        freight_df = fetch_freight_realtime(db, route=route, vessel_class=vessel_class)
+        commodity_df = fetch_commodity_realtime(db)
+        bunker_df = fetch_bunker_realtime(db)
 
         featured_df = create_features(freight_df, commodity_df, bunker_df)
 
@@ -803,7 +884,9 @@ async def run_backtest(
             "route": route,
             "vessel_class": vessel_class,
             "test_months": test_months,
-            "metrics": metrics
+            "metrics": metrics,
+            "data_points": len(freight_df),
+            "latest_rate": float(freight_df["rate_usd_per_ton"].iloc[-1]) if not freight_df.empty else None
         }
 
     except Exception as e:

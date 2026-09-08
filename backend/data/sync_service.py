@@ -35,12 +35,12 @@ def _log_run(dataset: str, status: str, rows: int = 0, error: str | None = None)
 
 
 def sync_freight() -> int:
-    """Stooq BDI -> route $/t upsert. Returns rows upserted."""
+    """BDI via yfinance -> route $/t upsert. Returns rows upserted."""
     try:
         from data.connectors.freight_stooq import fetch_bdi_daily, to_route_rates
         bdi = fetch_bdi_daily(days=120)
         if bdi.empty:
-            _log_run("freight", "skipped", 0, "No STOOQ_KEY or quota hit; kept DB values")
+            _log_run("freight", "skipped", 0, "BDI fetch failed; kept DB values")
             return 0
         df = to_route_rates(bdi)
         if df.empty:
