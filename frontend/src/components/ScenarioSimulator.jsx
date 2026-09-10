@@ -110,7 +110,7 @@ const ScenarioSimulator = ({ onRunScenario }) => {
               className="btn-primary"
               onClick={() => runScenario(s)}
               disabled={loading}
-              style={{ padding: '16px', textAlign: 'left', height: 'auto' }}
+              style={{ padding: '18px', textAlign: 'left', height: 'auto', background: 'linear-gradient(135deg, #6366f1, #7c3aed)' }}
             >
               <div style={{ fontWeight: 600, marginBottom: '8px' }}>{s.name}</div>
               <div style={{ fontSize: '12px', opacity: 0.7 }}>
@@ -161,7 +161,7 @@ const ScenarioSimulator = ({ onRunScenario }) => {
             </div>
           </div>
 
-          <div className="card" style={{ border: '1px solid var(--primary)' }}>
+          <div className="card" style={{ border: '1px solid rgba(99,102,241,0.2)', boxShadow: '0 2px 8px rgba(99,102,241,0.08)' }}>
             <div className="card-header">
               <div className="card-title">{results.scenario_name}</div>
               <span className="badge badge-medium">SCENARIO</span>

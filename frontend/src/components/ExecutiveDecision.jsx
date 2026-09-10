@@ -127,7 +127,7 @@ const ExecutiveDecision = ({ onRunAnalysis, recommendation, loading }) => {
       {!loading && recommendation && (
         <>
           <div className="recommendation-banner">
-            <div style={{ fontSize: '12px', color: 'var(--ink-subtle)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
+            <div style={{ fontSize: '12px', color: 'var(--ink-tertiary)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px', fontWeight: '600' }}>
               Recommendation
             </div>
             <div className="rec-action">{getActionLabel(recommendation.action)}</div>
@@ -199,10 +199,10 @@ const ExecutiveDecision = ({ onRunAnalysis, recommendation, loading }) => {
               </div>
               <div className="cost-breakdown">
                 {recommendation.all_options?.map((opt, i) => (
-                  <div key={i} className="cost-row" style={opt.type === recommendation.contract_type ? { background: 'rgba(94,106,210,0.08)', borderRadius: '8px', padding: '12px' } : {}}>
-                    <div>
-                      <span className="cost-label">{opt.type?.replace('_', ' ').toUpperCase()}</span>
-                      <span style={{ fontSize: '12px', color: 'var(--ink-tertiary)', marginLeft: '8px' }}>
+                    <div key={i} className="cost-row" style={opt.type === recommendation.contract_type ? { background: 'rgba(99,102,241,0.04)', borderRadius: '8px', padding: '12px' } : {}}>
+                      <div>
+                        <span className="cost-label">{opt.type?.replace('_', ' ').toUpperCase()}</span>
+                        <span style={{ fontSize: '12px', color: 'var(--ink-tertiary)', marginLeft: '8px' }}>
                         ({opt.voyages} voyage{opt.voyages > 1 ? 's' : ''})
                       </span>
                     </div>

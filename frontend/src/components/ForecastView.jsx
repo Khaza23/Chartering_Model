@@ -88,7 +88,7 @@ const ForecastView = ({ forecast, loading }) => {
                 <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" strokeOpacity={0.6} />
             <XAxis
               dataKey="date"
               stroke="var(--ink-tertiary)"
@@ -105,10 +105,11 @@ const ForecastView = ({ forecast, loading }) => {
             />
             <Tooltip
               contentStyle={{
-                background: 'var(--surface-2)',
+                background: 'var(--surface-1)',
                 border: '1px solid var(--hairline)',
-                borderRadius: '8px',
-                fontSize: '13px'
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '13px',
+                boxShadow: 'var(--shadow-md)'
               }}
               formatter={(value, name) => {
                 if (name === 'upper') return [`$${value.toFixed(1)}`, 'Upper Bound'];

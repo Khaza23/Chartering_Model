@@ -87,7 +87,8 @@ const VesselComparison = ({ feasibility, loading }) => {
                       <div style={{
                         width: `${v.feasibility_score * 100}%`, height: '100%',
                         background: v.feasibility_score > 0.7 ? 'var(--success)' : 'var(--warning)',
-                        borderRadius: '2px'
+                        borderRadius: '2px',
+                        transition: 'width 0.6s cubic-bezier(0.22, 1, 0.36, 1)'
                       }} />
                     </div>
                     <span style={{ fontSize: '13px', fontFeatureSettings: 'tnum' }}>

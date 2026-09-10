@@ -147,7 +147,7 @@ const WhyPanel = ({ recommendation }) => {
             ))}
           </div>
 
-          <div style={{ marginTop: '32px', padding: '16px', background: 'var(--surface-2)', borderRadius: '8px' }}>
+          <div style={{ marginTop: '32px', padding: '16px', background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--hairline)' }}>
             <div style={{ fontSize: '12px', color: 'var(--ink-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
               Human-in-the-Loop
             </div>

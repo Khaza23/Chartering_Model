@@ -76,19 +76,20 @@ const ContractComparison = ({ costData, loading }) => {
                 tickFormatter={v => `$${v.toFixed(1)}M`}
               />
               <Tooltip
-                contentStyle={{
-                  background: 'var(--surface-2)',
-                  border: '1px solid var(--hairline)',
-                  borderRadius: '8px',
-                  fontSize: '13px'
-                }}
+              contentStyle={{
+                background: 'var(--surface-1)',
+                border: '1px solid var(--hairline)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '13px',
+                boxShadow: 'var(--shadow-md)'
+              }}
                 formatter={(value) => [`$${value.toFixed(2)}M`, 'Total Cost']}
               />
               <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
                 {chartData.map((entry, i) => (
                   <Cell
                     key={i}
-                    fill={entry.cost * 1000000 === lowestCost ? 'var(--primary)' : 'var(--surface-3)'}
+                    fill={entry.cost * 1000000 === lowestCost ? 'var(--primary)' : 'var(--surface-4)'}
                   />
                 ))}
               </Bar>
