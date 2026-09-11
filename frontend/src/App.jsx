@@ -107,13 +107,12 @@ function App() {
         </div>
       </nav>
 
-      <main className="main-content">
+      <main className="main-content" key={activeScreen}>
         {error && <div className="error-banner">{error}</div>}
         {dataStatus && Object.values(dataStatus.datasets || {}).some(d => d && d.stale) && (
           <div className="stale-banner" role="status">
             <strong>Using seeded baseline for some datasets.</strong>{' '}
             Add free keys (FRED, EIA, Stooq, AISStream) and POST /api/sync to go live.
-            Route $/t is a BDI-scaled proxy and vessel availability is AIS-derived.
           </div>
         )}
         {dataStatus && <DataStatus status={dataStatus} />}

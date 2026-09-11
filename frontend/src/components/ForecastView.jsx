@@ -47,7 +47,7 @@ const ForecastView = ({ forecast, loading }) => {
         </div>
         <div className="metric-card">
           <div className="metric-label">Expected Range</div>
-          <div className="metric-value" style={{ fontSize: '18px' }}>
+          <div className="metric-value" style={{ fontSize: '16px' }}>
             ${forecast.forecast?.lower_bound?.toFixed(1)} – ${forecast.forecast?.upper_bound?.toFixed(1)}
           </div>
         </div>
@@ -56,7 +56,7 @@ const ForecastView = ({ forecast, loading }) => {
           <div className="metric-value">
             {(forecast.forecast?.confidence * 100).toFixed(0)}%
           </div>
-          <div className="confidence-bar" style={{ marginTop: '8px' }}>
+          <div className="confidence-bar" style={{ marginTop: '6px' }}>
             <div className="confidence-track">
               <div className="confidence-fill" style={{
                 width: `${forecast.forecast?.confidence * 100}%`,
@@ -67,7 +67,7 @@ const ForecastView = ({ forecast, loading }) => {
         </div>
         <div className="metric-card">
           <div className="metric-label">Market Trend</div>
-          <div className="metric-value" style={{ color: trendColor, fontSize: '20px' }}>
+          <div className="metric-value" style={{ color: trendColor, fontSize: '18px' }}>
             {trendIcon} {forecast.forecast?.trend?.toUpperCase()}
           </div>
         </div>
@@ -80,19 +80,19 @@ const ForecastView = ({ forecast, loading }) => {
             {forecast.route} · {forecast.vessel_class} · Ensemble Model
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer width="100%" height={350}>
           <AreaChart data={chartData}>
             <defs>
               <linearGradient id="confidenceGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.2} />
+                <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.08} />
                 <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" strokeOpacity={0.6} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" strokeOpacity={0.5} />
             <XAxis
               dataKey="date"
               stroke="var(--ink-tertiary)"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 11 }}
               tickFormatter={v => {
                 const d = new Date(v);
                 return `${d.getMonth() + 1}/${d.getDate()}`;
@@ -100,7 +100,7 @@ const ForecastView = ({ forecast, loading }) => {
             />
             <YAxis
               stroke="var(--ink-tertiary)"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 11 }}
               tickFormatter={v => `$${v}`}
             />
             <Tooltip
@@ -108,8 +108,9 @@ const ForecastView = ({ forecast, loading }) => {
                 background: 'var(--surface-1)',
                 border: '1px solid var(--hairline)',
                 borderRadius: 'var(--radius-sm)',
-                fontSize: '13px',
-                boxShadow: 'var(--shadow-md)'
+                fontSize: '12px',
+                boxShadow: 'var(--shadow-md)',
+                padding: '8px 12px'
               }}
               formatter={(value, name) => {
                 if (name === 'upper') return [`$${value.toFixed(1)}`, 'Upper Bound'];
@@ -144,7 +145,7 @@ const ForecastView = ({ forecast, loading }) => {
               strokeWidth={1}
               strokeDasharray="4 4"
               dot={false}
-              opacity={0.5}
+              opacity={0.4}
               name="Upper"
             />
             <Line
@@ -154,14 +155,14 @@ const ForecastView = ({ forecast, loading }) => {
               strokeWidth={1}
               strokeDasharray="4 4"
               dot={false}
-              opacity={0.5}
+              opacity={0.4}
               name="Lower"
             />
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="two-col" style={{ marginTop: '24px' }}>
+      <div className="two-col" style={{ marginTop: '20px' }}>
         <div className="card">
           <div className="card-header">
             <div className="card-title">Model Information</div>

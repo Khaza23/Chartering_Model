@@ -18,7 +18,7 @@ _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)
 from database.postgres import SessionLocal, engine
 from database.models_db import SyncRun
 
-DATASETS = ["freight", "bunker", "commodities", "congestion"]
+DATASETS = ["freight", "bunker", "commodities", "congestion", "vessels"]
 
 
 def _log_run(dataset: str, status: str, rows: int = 0, error: str | None = None):
@@ -199,6 +199,20 @@ def sync_vessel_positions(updates: list) -> int:
         return 0
 
 
+def sync_vessels() -> int:
+    """Fetch real vessel data from Marinesia API and upsert."""
+    try:
+        from data.ingestion import refresh_vessels_from_marinesia
+        db = SessionLocal()
+        count = refresh_vessels_from_marinesia(db, limit=100)
+        db.close()
+        _log_run("vessels", "success", count)
+        return count
+    except Exception as e:
+        _log_run("vessels", "failed", 0, f"{e}\n{traceback.format_exc()[-800:]}")
+        return 0
+
+
 def sync_dataset(name: str) -> Dict:
     name = (name or "").lower()
     if name == "freight":
@@ -215,6 +229,8 @@ def sync_dataset(name: str) -> Dict:
         except Exception:
             rows = 0
             _log_run("congestion", "skipped", 0, "AIS worker has no data yet")
+    elif name == "vessels":
+        rows = sync_vessels()
     else:
         return {"dataset": name, "error": f"Unknown dataset. Use one of {DATASETS}"}
     return {"dataset": name, "rows_upserted": rows}

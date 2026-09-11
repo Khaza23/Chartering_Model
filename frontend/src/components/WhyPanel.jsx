@@ -16,11 +16,11 @@ const WhyPanel = ({ recommendation }) => {
 
   const importanceItems = [
     { key: 'freight_trend', label: 'Freight Trend', color: 'var(--primary)' },
-    { key: 'contract_discount', label: 'Contract Discount', color: 'var(--primary-hover)' },
-    { key: 'port_congestion', label: 'Port Congestion', color: '#f59e0b' },
+    { key: 'contract_discount', label: 'Contract Discount', color: '#475569' },
+    { key: 'port_congestion', label: 'Port Congestion', color: 'var(--warning)' },
     { key: 'vessel_availability', label: 'Vessel Availability', color: 'var(--success)' },
-    { key: 'bunker_price', label: 'Bunker Price', color: '#ef4444' },
-    { key: 'laycan_flexibility', label: 'Laycan Flexibility', color: '#8b5cf6' }
+    { key: 'bunker_price', label: 'Bunker Price', color: 'var(--danger)' },
+    { key: 'laycan_flexibility', label: 'Laycan Flexibility', color: '#64748b' }
   ];
 
   const getActionLabel = (action) => {
@@ -46,43 +46,43 @@ const WhyPanel = ({ recommendation }) => {
             <div className="card-title">Why This Recommendation?</div>
           </div>
 
-          <div style={{ marginBottom: '24px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--ink-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '10px', color: 'var(--ink-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', fontWeight: '600' }}>
               Recommended Action
             </div>
-            <div style={{ fontSize: '22px', fontWeight: 600, letterSpacing: '-0.3px' }}>
+            <div style={{ fontSize: '20px', fontWeight: 600, letterSpacing: '-0.2px' }}>
               {getActionLabel(recommendation.action)}
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--ink-subtle)', marginBottom: '4px' }}>Expected Savings</div>
-              <div style={{ fontSize: '18px', fontWeight: 600, color: 'var(--success)' }}>
+              <div style={{ fontSize: '10px', color: 'var(--ink-subtle)', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600' }}>Expected Savings</div>
+              <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--success)' }}>
                 ${recommendation.expected_savings?.toLocaleString()}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--ink-subtle)', marginBottom: '4px' }}>Confidence</div>
-              <div style={{ fontSize: '18px', fontWeight: 600 }}>
+              <div style={{ fontSize: '10px', color: 'var(--ink-subtle)', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600' }}>Confidence</div>
+              <div style={{ fontSize: '16px', fontWeight: 600 }}>
                 {(recommendation.confidence * 100).toFixed(0)}%
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--ink-subtle)', marginBottom: '4px' }}>Risk Level</div>
-              <div style={{ fontSize: '18px', fontWeight: 600, color: getRiskColor(recommendation.risk_level) }}>
+              <div style={{ fontSize: '10px', color: 'var(--ink-subtle)', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600' }}>Risk Level</div>
+              <div style={{ fontSize: '16px', fontWeight: 600, color: getRiskColor(recommendation.risk_level) }}>
                 {recommendation.risk_level}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--ink-subtle)', marginBottom: '4px' }}>Savings %</div>
-              <div style={{ fontSize: '18px', fontWeight: 600 }}>
+              <div style={{ fontSize: '10px', color: 'var(--ink-subtle)', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600' }}>Savings %</div>
+              <div style={{ fontSize: '16px', fontWeight: 600 }}>
                 {recommendation.savings_pct}%
               </div>
             </div>
           </div>
 
-          <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Key Reasons</div>
+          <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '10px' }}>Key Reasons</div>
           <div className="reasoning-list">
             {recommendation.reasoning?.map((reason, i) => (
               <div key={i} className="reasoning-item">
@@ -98,7 +98,7 @@ const WhyPanel = ({ recommendation }) => {
             <div className="card-subtitle">Feature importance for this recommendation</div>
           </div>
 
-          <div className="bar-chart" style={{ marginTop: '8px' }}>
+          <div className="bar-chart" style={{ marginTop: '6px' }}>
             {importanceItems.map(item => {
               const value = featureImportance[item.key] || 0;
               return (
@@ -116,7 +116,7 @@ const WhyPanel = ({ recommendation }) => {
             })}
           </div>
 
-          <div style={{ marginTop: '32px' }}>
+          <div style={{ marginTop: '24px' }}>
             <div className="card-header">
               <div className="card-title">Risk Breakdown</div>
             </div>
@@ -126,9 +126,9 @@ const WhyPanel = ({ recommendation }) => {
                   <div className="bar-chart">
                     {[
                       { key: 'freight', label: 'Freight Risk', color: 'var(--primary)' },
-                      { key: 'port', label: 'Port Risk', color: '#f59e0b' },
+                      { key: 'port', label: 'Port Risk', color: 'var(--warning)' },
                       { key: 'vessel', label: 'Vessel Risk', color: 'var(--success)' },
-                      { key: 'contract', label: 'Contract Risk', color: '#ef4444' }
+                      { key: 'contract', label: 'Contract Risk', color: 'var(--danger)' }
                     ].map(item => (
                       <div key={item.key} className="bar-item">
                         <span className="bar-label">{item.label}</span>
@@ -147,11 +147,9 @@ const WhyPanel = ({ recommendation }) => {
             ))}
           </div>
 
-          <div style={{ marginTop: '32px', padding: '16px', background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--hairline)' }}>
-            <div style={{ fontSize: '12px', color: 'var(--ink-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
-              Human-in-the-Loop
-            </div>
-            <div style={{ fontSize: '13px', color: 'var(--ink-muted)', lineHeight: '1.5' }}>
+          <div className="hitl-box">
+            <div className="hitl-label">Human-in-the-Loop</div>
+            <div className="hitl-text">
               This is an AI-assisted recommendation. The procurement officer should review all factors
               before making a final chartering decision. The system does not autonomously execute trades.
             </div>

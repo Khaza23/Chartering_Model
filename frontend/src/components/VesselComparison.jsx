@@ -44,7 +44,7 @@ const VesselComparison = ({ feasibility, loading }) => {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: '24px' }}>
+      <div className="card" style={{ marginBottom: '20px' }}>
         <div className="card-header">
           <div className="card-title">Feasible Vessels</div>
           <div className="card-subtitle">
@@ -70,7 +70,7 @@ const VesselComparison = ({ feasibility, loading }) => {
               <tr key={v.vessel_id} className={i === 0 ? 'recommended' : ''}>
                 <td>
                   <div style={{ fontWeight: 500 }}>{v.name}</div>
-                  {i === 0 && <span className="badge badge-active" style={{ marginTop: '4px' }}>RECOMMENDED</span>}
+                  {i === 0 && <span className="badge badge-active" style={{ marginTop: '3px' }}>RECOMMENDED</span>}
                 </td>
                 <td style={{ textTransform: 'capitalize' }}>{v.vessel_class}</td>
                 <td>{formatNum(v.capacity)}</td>
@@ -79,7 +79,7 @@ const VesselComparison = ({ feasibility, loading }) => {
                 <td>{v.beam}</td>
                 <td>{v.port_name}</td>
                 <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <div style={{
                       width: '40px', height: '4px', background: 'var(--surface-3)',
                       borderRadius: '2px', overflow: 'hidden'
@@ -88,15 +88,15 @@ const VesselComparison = ({ feasibility, loading }) => {
                         width: `${v.feasibility_score * 100}%`, height: '100%',
                         background: v.feasibility_score > 0.7 ? 'var(--success)' : 'var(--warning)',
                         borderRadius: '2px',
-                        transition: 'width 0.6s cubic-bezier(0.22, 1, 0.36, 1)'
+                        transition: 'width 0.5s ease'
                       }} />
                     </div>
-                    <span style={{ fontSize: '13px', fontFeatureSettings: 'tnum' }}>
+                    <span style={{ fontSize: '12px', fontFeatureSettings: 'tnum', fontWeight: 500 }}>
                       {(v.feasibility_score * 100).toFixed(0)}
                     </span>
                   </div>
                 </td>
-                <td style={{ fontFeatureSettings: 'tnum' }}>
+                <td style={{ fontFeatureSettings: 'tnum', fontWeight: 500 }}>
                   ${v.daily_hire_rate?.toLocaleString()}
                 </td>
               </tr>
@@ -104,7 +104,7 @@ const VesselComparison = ({ feasibility, loading }) => {
           </tbody>
         </table>
         {feasibility.feasible_vessels?.length === 0 && (
-          <div style={{ padding: '32px', textAlign: 'center', color: 'var(--ink-subtle)' }}>
+          <div style={{ padding: '28px', textAlign: 'center', color: 'var(--ink-subtle)', fontSize: '13px' }}>
             No feasible vessels found for the given constraints
           </div>
         )}
@@ -122,7 +122,7 @@ const VesselComparison = ({ feasibility, loading }) => {
                 <div className="bar-track">
                   <div className="bar-fill" style={{
                     width: `${p.overall_score * 100}%`,
-                    background: i === 0 ? 'var(--primary)' : 'var(--surface-3)'
+                    background: i === 0 ? 'var(--primary)' : 'var(--surface-4)'
                   }} />
                 </div>
                 <span className="bar-value">{(p.overall_score * 100).toFixed(0)}</span>

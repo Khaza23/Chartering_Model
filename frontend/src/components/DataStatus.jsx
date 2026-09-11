@@ -1,7 +1,5 @@
 import React from 'react';
 
-// Linear DESIGN.md: status-badge = surface-2 bg, ink-muted caption,
-// pill 9999px, padding 2px 8px. Live dot uses semantic-success only.
 const LABELS = {
   freight: 'Freight · BDI proxy',
   bunker: 'Bunker · EIA trend',

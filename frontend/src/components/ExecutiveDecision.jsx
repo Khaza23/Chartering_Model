@@ -127,7 +127,7 @@ const ExecutiveDecision = ({ onRunAnalysis, recommendation, loading }) => {
       {!loading && recommendation && (
         <>
           <div className="recommendation-banner">
-            <div style={{ fontSize: '12px', color: 'var(--ink-tertiary)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px', fontWeight: '600' }}>
+            <div style={{ fontSize: '10px', color: 'var(--ink-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', fontWeight: '600' }}>
               Recommendation
             </div>
             <div className="rec-action">{getActionLabel(recommendation.action)}</div>
@@ -168,25 +168,25 @@ const ExecutiveDecision = ({ onRunAnalysis, recommendation, loading }) => {
           <div className="metric-row">
             <div className="metric-card">
               <div className="metric-label">Vessel</div>
-              <div className="metric-value" style={{ fontSize: '18px' }}>
+              <div className="metric-value" style={{ fontSize: '16px' }}>
                 {recommendation.vessel?.name || '--'}
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--ink-subtle)', marginTop: '4px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--ink-subtle)', marginTop: '2px' }}>
                 {recommendation.vessel?.class} · {recommendation.vessel?.capacity?.toLocaleString()} MT
               </div>
             </div>
             <div className="metric-card">
               <div className="metric-label">Port</div>
-              <div className="metric-value" style={{ fontSize: '18px' }}>
+              <div className="metric-value" style={{ fontSize: '16px' }}>
                 {recommendation.port || '--'}
               </div>
             </div>
             <div className="metric-card">
               <div className="metric-label">Contract</div>
-              <div className="metric-value" style={{ fontSize: '18px' }}>
+              <div className="metric-value" style={{ fontSize: '16px' }}>
                 {recommendation.contract_type?.replace('_', ' ').toUpperCase()}
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--ink-subtle)', marginTop: '4px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--ink-subtle)', marginTop: '2px' }}>
                 {recommendation.voyage_count} voyages
               </div>
             </div>
@@ -199,10 +199,10 @@ const ExecutiveDecision = ({ onRunAnalysis, recommendation, loading }) => {
               </div>
               <div className="cost-breakdown">
                 {recommendation.all_options?.map((opt, i) => (
-                    <div key={i} className="cost-row" style={opt.type === recommendation.contract_type ? { background: 'rgba(99,102,241,0.04)', borderRadius: '8px', padding: '12px' } : {}}>
+                    <div key={i} className="cost-row" style={opt.type === recommendation.contract_type ? { background: 'rgba(30,64,175,0.04)', borderRadius: '6px', padding: '8px 10px' } : {}}>
                       <div>
                         <span className="cost-label">{opt.type?.replace('_', ' ').toUpperCase()}</span>
-                        <span style={{ fontSize: '12px', color: 'var(--ink-tertiary)', marginLeft: '8px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--ink-tertiary)', marginLeft: '8px' }}>
                         ({opt.voyages} voyage{opt.voyages > 1 ? 's' : ''})
                       </span>
                     </div>

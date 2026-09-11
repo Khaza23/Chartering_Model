@@ -66,13 +66,13 @@ const ContractComparison = ({ costData, loading }) => {
           <div className="card-header">
             <div className="card-title">Cost Comparison</div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={280}>
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" />
-              <XAxis dataKey="name" stroke="var(--ink-tertiary)" tick={{ fontSize: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" strokeOpacity={0.5} />
+              <XAxis dataKey="name" stroke="var(--ink-tertiary)" tick={{ fontSize: 11 }} />
               <YAxis
                 stroke="var(--ink-tertiary)"
-                tick={{ fontSize: 12 }}
+                tick={{ fontSize: 11 }}
                 tickFormatter={v => `$${v.toFixed(1)}M`}
               />
               <Tooltip
@@ -80,12 +80,13 @@ const ContractComparison = ({ costData, loading }) => {
                 background: 'var(--surface-1)',
                 border: '1px solid var(--hairline)',
                 borderRadius: 'var(--radius-sm)',
-                fontSize: '13px',
-                boxShadow: 'var(--shadow-md)'
+                fontSize: '12px',
+                boxShadow: 'var(--shadow-md)',
+                padding: '8px 12px'
               }}
                 formatter={(value) => [`$${value.toFixed(2)}M`, 'Total Cost']}
               />
-              <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="cost" radius={[4, 4, 0, 0]} barSize={36}>
                 {chartData.map((entry, i) => (
                   <Cell
                     key={i}
@@ -98,7 +99,7 @@ const ContractComparison = ({ costData, loading }) => {
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: '24px' }}>
+      <div className="card" style={{ marginTop: '20px' }}>
         <div className="card-header">
           <div className="card-title">Contract Options</div>
           <div className="card-subtitle">Spot vs multi-voyage contracts</div>
@@ -119,7 +120,7 @@ const ContractComparison = ({ costData, loading }) => {
             {costData.comparison?.map((c, i) => (
               <tr key={i} className={c.total_cost === lowestCost ? 'recommended' : ''}>
                 <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ textTransform: 'capitalize', fontWeight: 500 }}>
                       {c.type?.replace('_', ' ')}
                     </span>

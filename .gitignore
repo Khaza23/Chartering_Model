@@ -9,3 +9,9 @@ build/
 .venv312/
 venv/
 pgdata/
+backend/data/.cache/
+backend/maritime.db
+GoogleCloudSDKInstaller.exe
+opencode.json
+stitch_req.json
+stitch_resp.json

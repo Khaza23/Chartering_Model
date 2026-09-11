@@ -215,6 +215,83 @@ def generate_congestion_data(ports_data, start_date=date(2024, 1, 1), end_date=d
     return pd.DataFrame(records)
 
 
+def refresh_vessels_from_marinesia(db: Session, limit: int = 100) -> int:
+    """Fetch real vessels from VesselAPI/Marineisa and upsert into database.
+
+    Tries VesselAPI first, then Marinesia, falls back to synthetic.
+    Returns number of vessels inserted/updated.
+    """
+    real_vessels = []
+
+    # Try VesselAPI first
+    try:
+        from data.connectors.vessels_vesselapi import fetch_vessels as vesselapi_fetch
+        real_vessels = vesselapi_fetch(limit=limit)
+    except Exception as e:
+        print(f"[ingestion] VesselAPI fetch failed: {e}")
+
+    # Fallback to Marinesia if VesselAPI returned nothing
+    if not real_vessels:
+        try:
+            from data.connectors.vessels_marinesia import fetch_vessels as marinesia_fetch
+            real_vessels = marinesia_fetch(limit=limit)
+        except Exception as e:
+            print(f"[ingestion] Marinesia fetch failed: {e}")
+
+    if not real_vessels:
+        print("[ingestion] No real vessels from Marinesia — using synthetic fallback.")
+        return 0
+
+    count = 0
+    from datetime import date, timedelta
+    for v_data in real_vessels:
+        imo = v_data.get("imo", "")
+        mmsi = v_data.get("mmsi", "")
+        name = v_data.get("name", "")
+
+        # Try to find existing vessel by IMO, MMSI, or name
+        existing = None
+        if imo:
+            existing = db.query(Vessel).filter(Vessel.imo == imo).first()
+        if existing is None and mmsi:
+            existing = db.query(Vessel).filter(Vessel.mmsi == mmsi).first()
+        if existing is None and name:
+            existing = db.query(Vessel).filter(Vessel.name == name).first()
+
+        if existing:
+            # Update AIS fields only — don't overwrite static specs
+            if mmsi:
+                existing.mmsi = mmsi
+            if v_data.get("flag"):
+                existing.flag = v_data["flag"]
+            count += 1
+        else:
+            # Insert new vessel with default availability dates
+            today = date.today()
+            vessel = Vessel(
+                name=name,
+                vessel_class=v_data["vessel_class"],
+                capacity=v_data["capacity"],
+                draft=v_data["draft"],
+                loa=v_data["loa"],
+                beam=v_data["beam"],
+                available_from=today,
+                available_until=today + timedelta(days=180),
+                speed_knots=v_data.get("speed_knots"),
+                fuel_consumption_tons_per_day=v_data.get("fuel_consumption_tons_per_day"),
+                daily_hire_rate=v_data.get("daily_hire_rate"),
+                imo=imo,
+                mmsi=mmsi,
+                availability_proxy=v_data.get("availability_proxy", "unknown"),
+            )
+            db.add(vessel)
+            count += 1
+
+    db.commit()
+    print(f"[ingestion] Upserted {count} vessels from Marinesia.")
+    return count
+
+
 def seed_database():
     init_db()
     db = SessionLocal()
@@ -243,11 +320,17 @@ def seed_database():
         db.commit()
 
         print("Inserting vessels...")
-        vessels_data = generate_vessels()
-        for v in vessels_data:
-            vessel = Vessel(**v)
-            db.add(vessel)
-        db.commit()
+        # Try Marinesia API first, fall back to synthetic
+        inserted = refresh_vessels_from_marinesia(db, limit=100)
+        if inserted == 0:
+            print("  Using synthetic vessel data...")
+            vessels_data = generate_vessels()
+            for v in vessels_data:
+                vessel = Vessel(**v)
+                db.add(vessel)
+            db.commit()
+        else:
+            print(f"  Inserted {inserted} real vessels from Marinesia")
 
         print("Generating congestion data...")
         congestion_df = generate_congestion_data(ports_data)
