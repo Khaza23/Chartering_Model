@@ -2,13 +2,25 @@ import React, { useState } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+const getDefaultDates = () => {
+  const start = new Date();
+  start.setDate(start.getDate() + 3);
+  const end = new Date();
+  end.setDate(end.getDate() + 14);
+  return {
+    start: start.toISOString().split('T')[0],
+    end: end.toISOString().split('T')[0]
+  };
+};
+
 const ScenarioSimulator = ({ onRunScenario }) => {
+  const defaultDates = getDefaultDates();
   const [params, setParams] = useState({
     cargo_quantity: 75000,
     origin: 'Australia',
     destination: 'Paradip',
-    laycan_start: '2025-10-10',
-    laycan_end: '2025-10-20',
+    laycan_start: defaultDates.start,
+    laycan_end: defaultDates.end,
     required_voyages: 6,
     current_freight_rate: 22.0
   });

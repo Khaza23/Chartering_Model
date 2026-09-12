@@ -3,12 +3,14 @@ import json
 import time
 
 base_url = 'http://localhost:8000/api'
+from datetime import date, timedelta
+today = date.today()
 params = {
     'cargo_quantity': 75000,
     'origin': 'Australia',
     'destination': 'Paradip',
-    'laycan_start': '2025-10-10',
-    'laycan_end': '2025-10-20',
+    'laycan_start': (today + timedelta(days=3)).strftime('%Y-%m-%d'),
+    'laycan_end': (today + timedelta(days=13)).strftime('%Y-%m-%d'),
     'required_voyages': 6,
     'current_freight_rate': 22.0
 }
