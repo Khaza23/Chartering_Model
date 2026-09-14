@@ -131,12 +131,13 @@ class FeasibilityEngine:
     def _calculate_laycan_overlap(self, vessel_from, vessel_until, laycan_start, laycan_end):
         overlap_start = max(vessel_from, laycan_start)
         overlap_end = min(vessel_until, laycan_end)
-        if overlap_start >= overlap_end:
+        if overlap_start > overlap_end:
             return 0.0
-        overlap_days = (overlap_end - overlap_start).days
-        total_days = (laycan_end - laycan_start).days
-        if total_days == 0:
-            return 0.0
+        # Inclusive day counting so single-day overlaps / single-day laycans score correctly.
+        overlap_days = (overlap_end - overlap_start).days + 1
+        total_days = (laycan_end - laycan_start).days + 1
+        if total_days <= 0:
+            return 1.0 if overlap_days > 0 else 0.0
         return min(overlap_days / total_days, 1.0)
 
     def score_port_feasibility(self, ports_df: pd.DataFrame, congestion_df: pd.DataFrame,

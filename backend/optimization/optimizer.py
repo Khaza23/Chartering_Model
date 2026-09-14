@@ -24,6 +24,7 @@ class OptimizationResult:
     all_options: List[Dict]
     reasoning: List[str]
     feature_importance: Dict
+    vessel_options: List[Dict] = field(default_factory=list)
 
 
 class CharteringOptimizer:
@@ -49,7 +50,12 @@ class CharteringOptimizer:
         avg_bunker_price: float = 400.0,
         required_voyages: int = 6,
         congestion_df=None,
+        as_of: date = None,
     ) -> OptimizationResult:
+        # as_of lets the timing advisor evaluate "what if we book later":
+        # availability and laycan-slack math run against the simulated date.
+        # Defaults to today so every existing caller is unaffected.
+        _today = as_of or date.today()
         feasible_vessels = self.feasibility_engine.filter_vessels(
             vessels_df, ports_df, cargo_quantity, laycan_start, laycan_end, origin, destination
         )
@@ -57,73 +63,165 @@ class CharteringOptimizer:
         if not feasible_vessels:
             return self._no_feasible_solution()
 
-        # Reconfigure: prefer real congestion history (incl. live/aisstream rows)
-        # for the destination; fall back to stub only when empty/missing.
-        _congestion_frame = congestion_df
-        try:
-            if _congestion_frame is not None and not _congestion_frame.empty:
-                _dest = _congestion_frame[_congestion_frame["port_name"] == destination]
-                if _dest.empty:
-                    _congestion_frame = self._get_congestion_stub(destination)
-                else:
-                    _congestion_frame = _dest.tail(30)
-            else:
-                _congestion_frame = self._get_congestion_stub(destination)
-        except Exception:
-            _congestion_frame = self._get_congestion_stub(destination)
-
-        port_scores = self.feasibility_engine.score_port_feasibility(
-            ports_df, _congestion_frame, feasible_vessels[0]
-        )
-
-        best_vessel = feasible_vessels[0]
-        best_port = port_scores[0] if port_scores else {"port_name": destination}
-
         forecast_value = freight_forecast.get("forecast_value", current_freight_rate) if freight_forecast else current_freight_rate
         forecast_confidence = freight_forecast.get("confidence", 0.7) if freight_forecast else 0.7
 
+        # Contract menu covers the requested program: only options that can
+        # actually serve required_voyages voyages stay eligible.
+        # Contract levels blend the user's observed rate (level anchor) with
+        # the forecast (trend expectation) so the rate input visibly moves
+        # the answer instead of being silently overridden by the model.
+        _contract_base = (float(current_freight_rate) + float(forecast_value)) / 2.0
         contract_options = self._build_contract_options(
-            forecast_value, contracts_df
+            _contract_base, contracts_df
         )
+        try:
+            _need_voyages = int(required_voyages or 1)
+        except Exception:
+            _need_voyages = 1
 
-        comparison = self.cost_engine.compare_contract_costs(
-            spot_rate=forecast_value,
-            cargo_quantity=cargo_quantity,
-            vessel=best_vessel,
-            port_name=best_port["port_name"],
-            origin=origin,
-            contract_options=contract_options,
-            avg_bunker_price=avg_bunker_price,
-            avg_congestion_index=port_congestion
-        )
-
-        laycan_days_away = (laycan_start - date.today()).days
+        laycan_days_away = (laycan_start - _today).days
         laycan_days_away = max(1, laycan_days_away)
 
-        availability_days = (best_vessel.available_until - date.today()).days
-
-        comparison = self.risk_engine.calculate_risk_for_comparison(
-            comparison,
-            freight_forecast=freight_forecast,
-            port_congestion=port_congestion,
-            port_avg_delay=port_avg_delay,
-            vessel_availability_days=availability_days,
-            laycan_days_away=laycan_days_away
+        # Per-port congestion lookup from the FULL history (not destination-only)
+        # so every vessel x port combo is costed/risked with its own port reality.
+        port_congestion_map = self._build_port_congestion_map(
+            congestion_df, port_congestion, port_avg_delay
         )
 
-        best_option = self._select_best_option(comparison, forecast_confidence)
+        # Evaluate EVERY feasible vessel x port combo on cost + risk,
+        # instead of locking to feasible_vessels[0] before costing.
+        all_triples = []  # (FeasibleVessel, contract_option)
+        for fv in feasible_vessels:
+            cong, delay = port_congestion_map.get(
+                fv.port_name, (port_congestion, port_avg_delay)
+            )
+            comparison = self.cost_engine.compare_contract_costs(
+                # Spot leg is priced at the user's observed market rate;
+                # contract legs are priced off the forecast (future expectation).
+                spot_rate=current_freight_rate,
+                cargo_quantity=cargo_quantity,
+                vessel=fv,
+                port_name=fv.port_name,
+                origin=origin,
+                contract_options=contract_options,
+                avg_bunker_price=avg_bunker_price,
+                avg_congestion_index=cong
+            )
+            availability_days = (fv.available_until - _today).days
+            # Program-basis savings: a multi-voyage total can only be judged
+            # against N single spot voyages, not one. (The raw field from the
+            # cost engine compares N voyages against 1, which is always deeply
+            # negative and zeroes out the savings math downstream.)
+            _spot_ref = next((o for o in comparison if o.get("type") == "spot"), None)
+            if _spot_ref is not None:
+                for o in comparison:
+                    _prog_spot = _spot_ref["total_cost"] * int(o.get("voyages", 1))
+                    o["savings_vs_spot"] = round(_prog_spot - o["total_cost"], 2)
+                    o["savings_pct"] = round(
+                        (o["savings_vs_spot"] / _prog_spot * 100) if _prog_spot > 0 else 0, 1
+                    )
+            comparison = self.risk_engine.calculate_risk_for_comparison(
+                comparison,
+                freight_forecast=freight_forecast,
+                port_congestion=cong,
+                port_avg_delay=delay,
+                vessel_availability_days=availability_days,
+                laycan_days_away=laycan_days_away
+            )
+            # A 1-voyage spot can't cover a multi-voyage program: drop options
+            # below the requested voyage count (keep the largest as fallback).
+            eligible = [o for o in comparison if int(o.get("voyages", 1)) >= _need_voyages]
+            if not eligible:
+                eligible = sorted(comparison, key=lambda o: int(o.get("voyages", 1)))[-1:]
+            comparison = eligible
+            for opt in comparison:
+                opt["vessel_id"] = fv.vessel_id
+                opt["vessel_name"] = fv.name
+                opt["vessel_class"] = fv.vessel_class
+                opt["port_name"] = fv.port_name
+                opt["feasibility_score"] = fv.feasibility_score
+                all_triples.append((fv, opt))
 
+        if not all_triples:
+            return self._no_feasible_solution()
+
+        # The winner must discharge at the requested destination — other
+        # ports stay visible as alternates (vessel_options) but can't win.
+        dest_triples = [(fv, opt) for fv, opt in all_triples if fv.port_name == destination]
+        if not dest_triples:
+            return self._no_feasible_solution(
+                f"No feasible vessel found that can serve {destination} "
+                f"for {cargo_quantity:,.0f} MT in the laycan window"
+            )
+
+        # Winner across vessels AND contracts, within the destination port.
+        best_vessel, best_option = self._select_best_triple(dest_triples, forecast_confidence)
+        best_port_name = best_vessel.port_name
+
+        # Contract comparison for the winning vessel x port (preserves existing UI).
+        winning_comparison = [
+            opt for fv, opt in all_triples
+            if fv.vessel_id == best_vessel.vessel_id and fv.port_name == best_port_name
+        ]
+
+        # Ranked vessel x port shortlist (best contract per combo) for transparency.
+        best_per_combo = {}
+        for fv, opt in all_triples:
+            key = (fv.vessel_id, fv.port_name)
+            cur = best_per_combo.get(key)
+            if cur is None or self._triple_score(
+                [(fv, opt)], forecast_confidence, all_triples
+            ) > self._triple_score([(cur[0], cur[1])], forecast_confidence, all_triples):
+                best_per_combo[key] = (fv, opt)
+        vessel_options = sorted(
+            [
+                {
+                    "vessel_id": fv.vessel_id,
+                    "vessel_name": fv.name,
+                    "vessel_class": fv.vessel_class,
+                    "port_name": fv.port_name,
+                    "feasibility_score": fv.feasibility_score,
+                    "type": opt["type"],
+                    "voyages": opt["voyages"],
+                    "total_cost": opt["total_cost"],
+                    "cost_per_mt": opt["cost_per_mt"],
+                    "risk_score": opt["risk_score"],
+                    "risk_level": opt["risk_level"],
+                }
+                for fv, opt in best_per_combo.values()
+            ],
+            key=lambda o: o["total_cost"],
+        )
+
+        # Port ranking using the WINNER and full congestion history.
+        try:
+            _full_cong = congestion_df if congestion_df is not None and not congestion_df.empty else self._get_congestion_stub(destination)
+        except Exception:
+            _full_cong = self._get_congestion_stub(destination)
+        port_scores = self.feasibility_engine.score_port_feasibility(
+            ports_df, _full_cong, best_vessel
+        )
+        best_port = next(
+            (p for p in port_scores if p["port_name"] == best_port_name),
+            (port_scores[0] if port_scores else {"port_name": best_port_name}),
+        )
+
+        best_congestion, _best_delay = port_congestion_map.get(
+            best_port_name, (port_congestion, port_avg_delay)
+        )
         reasoning = self._generate_reasoning(
-            best_option, comparison, freight_forecast, port_congestion, best_vessel
+            best_option, winning_comparison, freight_forecast, best_congestion, best_vessel
         )
 
         feature_importance = self._compute_feature_importance(
-            freight_forecast, port_congestion, best_vessel, best_option
+            freight_forecast, best_congestion, best_vessel, best_option
         )
 
-        spot_cost = next((c for c in comparison if c["type"] == "spot"), None)
-        expected_savings = spot_cost["total_cost"] - best_option["total_cost"] if spot_cost else 0
-        savings_pct = (expected_savings / spot_cost["total_cost"] * 100) if spot_cost and spot_cost["total_cost"] > 0 else 0
+        # Program-basis savings live on the winning option itself (spot may be
+        # legitimately absent from the comparison for multi-voyage programs).
+        expected_savings = round(float(best_option.get("savings_vs_spot", 0) or 0), 2)
+        savings_pct = round(float(best_option.get("savings_pct", 0) or 0), 1)
 
         return OptimizationResult(
             recommended_action=self._map_action(best_option["type"]),
@@ -142,11 +240,12 @@ class CharteringOptimizer:
             risk_score=best_option["risk_score"],
             risk_level=best_option["risk_level"],
             confidence=forecast_confidence,
-            expected_savings=round(expected_savings, 2),
-            savings_pct=round(savings_pct, 1),
-            all_options=comparison,
+            expected_savings=expected_savings,
+            savings_pct=savings_pct,
+            all_options=winning_comparison,
             reasoning=reasoning,
-            feature_importance=feature_importance
+            feature_importance=feature_importance,
+            vessel_options=vessel_options
         )
 
     def _build_contract_options(self, current_rate: float, contracts_df=None):
@@ -187,6 +286,57 @@ class CharteringOptimizer:
 
         return max(comparison, key=score_option)
 
+    def _build_port_congestion_map(self, congestion_df, fallback_congestion: float, fallback_delay: float) -> Dict:
+        mapping = {}
+        try:
+            if congestion_df is not None and not congestion_df.empty:
+                frame = congestion_df.tail(150)
+                for port_name, grp in frame.groupby("port_name"):
+                    try:
+                        mapping[str(port_name)] = (
+                            float(grp["congestion_index"].tail(30).mean()),
+                            float(grp["expected_delay_hours"].tail(30).mean()),
+                        )
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+        return mapping
+
+    def _option_weights(self, confidence: float):
+        if confidence > 0.8:
+            return [0.45, 0.25, 0.30]
+        elif confidence > 0.6:
+            return [0.40, 0.35, 0.25]
+        return [0.30, 0.45, 0.25]
+
+    def _triple_score(self, triple, confidence: float, all_triples) -> float:
+        _, opt = triple[0] if isinstance(triple, list) else triple
+        all_opts = [o for _, o in all_triples]
+        max_total = max(o["total_cost"] for o in all_opts) or 1
+        max_sav = max((o.get("savings_vs_spot", 0) for o in all_opts), default=0)
+        max_sav = max(max_sav, 1)
+        cost_score = 1 - (opt["total_cost"] / max_total)
+        risk_score = 1 - (opt["risk_score"] / 100)
+        savings_score = opt.get("savings_vs_spot", 0) / max_sav
+        w = self._option_weights(confidence)
+        return w[0] * cost_score + w[1] * risk_score + w[2] * savings_score
+
+    def _select_best_triple(self, all_triples, confidence: float):
+        def _score(pair):
+            _, opt = pair
+            all_opts = [o for _, o in all_triples]
+            max_total = max(o["total_cost"] for o in all_opts) or 1
+            max_sav = max((o.get("savings_vs_spot", 0) for o in all_opts), default=0)
+            max_sav = max(max_sav, 1)
+            cost_score = 1 - (opt["total_cost"] / max_total)
+            risk_score = 1 - (opt["risk_score"] / 100)
+            savings_score = opt.get("savings_vs_spot", 0) / max_sav
+            w = self._option_weights(confidence)
+            return w[0] * cost_score + w[1] * risk_score + w[2] * savings_score
+
+        return max(all_triples, key=_score)
+
     def _map_action(self, contract_type: str) -> str:
         mapping = {
             "spot": "BOOK_NOW",
@@ -225,8 +375,9 @@ class CharteringOptimizer:
 
         if vessel:
             reasons.append(
-                f"Vessel {vessel.name} ({vessel.vessel_class}) fits port constraints "
-                f"with feasibility score {vessel.feasibility_score:.2f}"
+                f"Vessel {vessel.name} ({vessel.vessel_class}) to {best_option.get('port_name', '')} "
+                f"won on total cost (${best_option.get('total_cost', 0):,.0f}) with "
+                f"feasibility score {vessel.feasibility_score:.2f}"
             )
 
         if best_option["voyages"] >= 6:
@@ -258,7 +409,7 @@ class CharteringOptimizer:
         total = sum(importance.values())
         return {k: round(v / total * 100, 1) for k, v in importance.items()}
 
-    def _no_feasible_solution(self):
+    def _no_feasible_solution(self, reason: str = "No feasible vessel-port combination found for the given constraints"):
         return OptimizationResult(
             recommended_action="NO_FEASIBLE_SOLUTION",
             recommended_vessel={},
@@ -273,8 +424,9 @@ class CharteringOptimizer:
             expected_savings=0,
             savings_pct=0,
             all_options=[],
-            reasoning=["No feasible vessel-port combination found for the given constraints"],
-            feature_importance={}
+            reasoning=[reason],
+            feature_importance={},
+            vessel_options=[]
         )
 
     def _get_congestion_stub(self, port_name):

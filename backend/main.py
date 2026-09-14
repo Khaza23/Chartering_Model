@@ -37,6 +37,7 @@ from optimization.feasibility import FeasibilityEngine
 from optimization.cost_engine import CostEngine
 from risk.risk_engine import RiskEngine
 from optimization.optimizer import CharteringOptimizer
+from optimization.timing import TimingAdvisor
 import numpy as np
 
 def to_serializable(val):
@@ -109,6 +110,11 @@ class ScenarioRequest(BaseModel):
     bunker_change_pct: float = 0
     congestion_change: float = 0
     delay_change_hours: float = 0
+
+
+class TimingRequest(BaseModel):
+    base_params: OptimizationRequest
+    wait_days: List[int] = [0, 7, 14, 30, 45, 60]
 
 
 class RecommendationAction(BaseModel):
@@ -359,6 +365,7 @@ async def get_feasibility(request: FeasibilityRequest, db: Session = Depends(get
         total_vessels = len(vessels_df)
         feasible_count = len(feasible_vessels)
         rejected_count = total_vessels * len(ports_df) - feasible_count
+        unique_feasible_vessels = len({v.vessel_id for v in feasible_vessels})
 
         return {
             "input": {
@@ -371,7 +378,9 @@ async def get_feasibility(request: FeasibilityRequest, db: Session = Depends(get
                 "total_candidates": total_vessels * len(ports_df),
                 "feasible_count": feasible_count,
                 "rejected_count": rejected_count,
-                "filter_pass_rate": round(feasible_count / max(total_vessels * len(ports_df), 1) * 100, 1)
+                "filter_pass_rate": round(feasible_count / max(total_vessels * len(ports_df), 1) * 100, 1),
+                "unique_feasible_vessels": unique_feasible_vessels,
+                "total_vessels": total_vessels
             },
             "feasible_vessels": [
                 {
@@ -382,6 +391,7 @@ async def get_feasibility(request: FeasibilityRequest, db: Session = Depends(get
                     "draft": v.draft,
                     "loa": v.loa,
                     "beam": v.beam,
+                    "port_id": v.port_id,
                     "port_name": v.port_name,
                     "feasibility_score": v.feasibility_score,
                     "daily_hire_rate": v.daily_hire_rate,
@@ -543,27 +553,33 @@ async def optimize(request: OptimizationRequest, db: Session = Depends(get_db)):
             congestion_df=congestion_df
         )
 
-        rec = Recommendation(
-            cargo_id=1,
-            action=result.recommended_action,
-            vessel_id=result.recommended_vessel.get("id", 0),
-            port_id=0,
-            contract_type=result.recommended_contract,
-            voyage_count=result.voyage_count,
-            expected_cost_usd=result.expected_total_cost,
-            cost_per_mt=result.cost_per_mt,
-            risk_score=result.risk_score,
-            confidence=result.confidence,
-            expected_savings_usd=result.expected_savings,
-            reasoning=json.dumps(result.reasoning),
-            model_version="ensemble_v1"
-        )
-        db.add(rec)
-        db.commit()
-        db.refresh(rec)
+        rec_id = None
+        if result.recommended_vessel.get("id"):
+            from database.models_db import Port
+            port_row = db.query(Port).filter(Port.name == result.recommended_port).first()
+            if port_row is not None:
+                rec = Recommendation(
+                    cargo_id=1,
+                    action=result.recommended_action,
+                    vessel_id=result.recommended_vessel.get("id", 0),
+                    port_id=port_row.port_id,
+                    contract_type=result.recommended_contract,
+                    voyage_count=result.voyage_count,
+                    expected_cost_usd=result.expected_total_cost,
+                    cost_per_mt=result.cost_per_mt,
+                    risk_score=result.risk_score,
+                    confidence=result.confidence,
+                    expected_savings_usd=result.expected_savings,
+                    reasoning=json.dumps(result.reasoning),
+                    model_version="ensemble_v1"
+                )
+                db.add(rec)
+                db.commit()
+                db.refresh(rec)
+                rec_id = rec.id
 
         return to_serializable({
-            "recommendation_id": rec.id,
+            "recommendation_id": rec_id,
             "action": result.recommended_action,
             "vessel": result.recommended_vessel,
             "port": result.recommended_port,
@@ -577,6 +593,7 @@ async def optimize(request: OptimizationRequest, db: Session = Depends(get_db)):
             "expected_savings": result.expected_savings,
             "savings_pct": result.savings_pct,
             "all_options": result.all_options,
+            "vessel_options": result.vessel_options,
             "reasoning": result.reasoning,
             "feature_importance": result.feature_importance
         })
@@ -665,6 +682,75 @@ async def run_scenario(request: ScenarioRequest, db: Session = Depends(get_db)):
                 "recommendation_changed": base_result.recommended_action != scenario_result["result"].recommended_action
             }
         })
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/timing")
+async def assess_timing(request: TimingRequest, db: Session = Depends(get_db)):
+    """Book-now vs wait advisor. Additive: reuses the optimizer per wait date,
+    changes no existing endpoint."""
+    try:
+        bp = request.base_params
+        waits = sorted({max(0, int(w)) for w in (request.wait_days or [0])})[:8]
+        horizon = min(max(waits) + 1 if waits else 1, 92)
+
+        freight_df = fetch_freight_realtime(db, route=f"{bp.origin}-{bp.destination}")
+        commodity_df = fetch_commodity_realtime(db)
+        bunker_df = fetch_bunker_realtime(db)
+        featured_df = create_features(freight_df, commodity_df, bunker_df) if not freight_df.empty else pd.DataFrame()
+
+        curve: List[Dict] = []
+        if not featured_df.empty:
+            try:
+                forecaster = FreightForecaster()
+                forecaster.train(featured_df, f"{bp.origin}-{bp.destination}", "panamax")
+                preds = forecaster.predict(
+                    featured_df, forecast_days=horizon,
+                    route=f"{bp.origin}-{bp.destination}", vessel_class="panamax"
+                )
+                for f in preds:
+                    curve.append({
+                        "date": f.forecast_date.isoformat() if hasattr(f.forecast_date, "isoformat") else str(f.forecast_date),
+                        "forecast_value": f.forecast_value,
+                        "lower_bound": f.lower_bound,
+                        "upper_bound": f.upper_bound,
+                        "confidence": f.confidence,
+                    })
+            except Exception:
+                curve = []
+
+        vessels_df = fetch_vessels_realtime(db)
+        ports_df = load_ports(db)
+        contracts_df = load_contracts(db)
+        congestion_df = fetch_congestion_realtime(db)
+        avg_congestion = float(congestion_df["congestion_index"].mean()) if not congestion_df.empty else 30
+        avg_delay = float(congestion_df["expected_delay_hours"].mean()) if not congestion_df.empty else 12
+        bunker_avg = float(bunker_df["vlsfo_price"].mean()) if not bunker_df.empty else 400
+
+        base_ff = dict(curve[0]) if curve else None
+        advisor = TimingAdvisor()
+        result = advisor.advise(
+            cargo_quantity=bp.cargo_quantity,
+            origin=bp.origin,
+            destination=bp.destination,
+            laycan_start=bp.laycan_start,
+            laycan_end=bp.laycan_end,
+            vessels_df=vessels_df,
+            ports_df=ports_df,
+            contracts_df=contracts_df,
+            forecast_curve=curve,
+            base_current_rate=bp.current_freight_rate,
+            base_freight_forecast=base_ff,
+            port_congestion=avg_congestion,
+            port_avg_delay=avg_delay,
+            avg_bunker_price=bunker_avg,
+            required_voyages=bp.required_voyages,
+            congestion_df=congestion_df,
+            wait_days=waits,
+        )
+        return to_serializable(result)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -768,6 +854,9 @@ async def list_ports(db: Session = Depends(get_db)):
 @app.get("/api/contracts")
 async def list_contracts(db: Session = Depends(get_db)):
     contracts_df = load_contracts(db)
+    # NULLs (e.g. spot duration_months) become NaN, which is not JSON
+    # compliant — normalize to None before serializing.
+    contracts_df = contracts_df.astype(object).where(contracts_df.notnull(), None)
     return {"contracts": contracts_df.to_dict(orient="records"), "count": len(contracts_df)}
 
 

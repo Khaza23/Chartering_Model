@@ -30,7 +30,7 @@ BDI_TICKER = "BDRY"
 BDI_REFERENCE = 1500.0  # reference BDI level for calibration
 BDRY_TO_BDI_SCALE = 100.0  # BDRY * 100 ≈ BDI equivalent
 CACHE_KEY = "yfinance_bdi_daily"
-CACHE_HOURS = 20
+CACHE_HOURS = 6
 
 
 def fetch_bdi_daily(days: int = 120) -> pd.DataFrame:

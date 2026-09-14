@@ -237,6 +237,28 @@ const ExecutiveDecision = ({ onRunAnalysis, recommendation, loading }) => {
               </div>
             </div>
           </div>
+
+          {recommendation.vessel_options?.length > 1 && (
+            <div className="card" style={{ marginTop: '20px' }}>
+              <div className="card-header">
+                <div className="card-title">Top Vessel × Port Alternatives</div>
+                <div className="card-subtitle">Ranked by total cost — winner varies with rates, bunker, and congestion</div>
+              </div>
+              <div className="cost-breakdown">
+                {recommendation.vessel_options.slice(0, 5).map((o) => (
+                  <div key={`${o.vessel_id}-${o.port_name}-${o.type}`} className="cost-row">
+                    <div>
+                      <span className="cost-label">{o.vessel_name} → {o.port_name}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--ink-tertiary)', marginLeft: '8px' }}>
+                        {o.vessel_class} · {o.type?.replace('_', ' ')} · score {(o.feasibility_score * 100).toFixed(0)}
+                      </span>
+                    </div>
+                    <div className="cost-value">{formatCost(o.total_cost)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

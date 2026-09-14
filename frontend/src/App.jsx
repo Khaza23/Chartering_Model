@@ -5,6 +5,7 @@ import ForecastView from './components/ForecastView';
 import VesselComparison from './components/VesselComparison';
 import ContractComparison from './components/ContractComparison';
 import ScenarioSimulator from './components/ScenarioSimulator';
+import Timing from './components/Timing';
 import WhyPanel from './components/WhyPanel';
 import './App.css';
 
@@ -17,6 +18,8 @@ function App() {
   const [forecast, setForecast] = useState(null);
   const [feasibility, setFeasibility] = useState(null);
   const [costData, setCostData] = useState(null);
+  const [timing, setTiming] = useState(null);
+  const [lastParams, setLastParams] = useState(null);
   const [error, setError] = useState(null);
   const [dataStatus, setDataStatus] = useState(null);
 
@@ -68,6 +71,25 @@ function App() {
       setForecast(foreRes);
       setFeasibility(feasRes);
       setCostData(costRes);
+      setLastParams(params);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runTiming = async (params) => {
+    if (!params) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/timing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base_params: params })
+      }).then(r => r.json());
+      setTiming(res);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -81,6 +103,7 @@ function App() {
     { id: 'vessels', label: 'Vessels' },
     { id: 'contracts', label: 'Contracts' },
     { id: 'scenario', label: 'What-If' },
+    { id: 'timing', label: 'Timing' },
     { id: 'why', label: 'Why?' }
   ];
 
@@ -128,13 +151,21 @@ function App() {
           <ForecastView forecast={forecast} loading={loading} />
         )}
         {activeScreen === 'vessels' && (
-          <VesselComparison feasibility={feasibility} loading={loading} />
+          <VesselComparison feasibility={feasibility} recommendation={recommendation} loading={loading} />
         )}
         {activeScreen === 'contracts' && (
           <ContractComparison costData={costData} loading={loading} />
         )}
         {activeScreen === 'scenario' && (
           <ScenarioSimulator onRunScenario={runAnalysis} />
+        )}
+        {activeScreen === 'timing' && (
+          <Timing
+            timing={timing}
+            loading={loading}
+            hasParams={!!lastParams}
+            onAssessTiming={() => runTiming(lastParams)}
+          />
         )}
         {activeScreen === 'why' && (
           <WhyPanel recommendation={recommendation} />

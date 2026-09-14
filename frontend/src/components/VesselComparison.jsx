@@ -1,6 +1,6 @@
 import React from 'react';
 
-const VesselComparison = ({ feasibility, loading }) => {
+const VesselComparison = ({ feasibility, recommendation, loading }) => {
   if (loading) {
     return <div className="loading-spinner"><div className="spinner" /></div>;
   }
@@ -16,6 +16,8 @@ const VesselComparison = ({ feasibility, loading }) => {
   }
 
   const formatNum = (val) => val ? val.toLocaleString() : '--';
+  const uniqueVesselCount = feasibility.summary?.unique_feasible_vessels
+    ?? new Set((feasibility.feasible_vessels || []).map((v) => v.vessel_id)).size;
 
   return (
     <div>
@@ -25,9 +27,12 @@ const VesselComparison = ({ feasibility, loading }) => {
           <div className="metric-value">{feasibility.summary?.total_candidates || 0}</div>
         </div>
         <div className="metric-card">
-          <div className="metric-label">Feasible</div>
+          <div className="metric-label">Feasible Combos</div>
           <div className="metric-value" style={{ color: 'var(--success)' }}>
             {feasibility.summary?.feasible_count || 0}
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--ink-subtle)', marginTop: '2px' }}>
+            {uniqueVesselCount} unique vessels
           </div>
         </div>
         <div className="metric-card">
@@ -46,9 +51,10 @@ const VesselComparison = ({ feasibility, loading }) => {
 
       <div className="card" style={{ marginBottom: '20px' }}>
         <div className="card-header">
-          <div className="card-title">Feasible Vessels</div>
+          <div className="card-title">Feasible Vessels × Ports</div>
           <div className="card-subtitle">
-            Filtered by capacity, draft, LOA, beam, and laycan
+            One row per feasible vessel-port combination — same vessel scores differently per port (draft/LOA limits).
+            RECOMMENDED marks the Decision-tab winner (cost + risk).
           </div>
         </div>
         <table className="vessel-table">
@@ -66,11 +72,15 @@ const VesselComparison = ({ feasibility, loading }) => {
             </tr>
           </thead>
           <tbody>
-            {feasibility.feasible_vessels?.map((v, i) => (
-              <tr key={v.vessel_id} className={i === 0 ? 'recommended' : ''}>
+            {feasibility.feasible_vessels?.map((v, i) => {
+              const isWinner = !!recommendation?.vessel
+                && v.vessel_id === recommendation.vessel.id
+                && v.port_name === recommendation.port;
+              return (
+              <tr key={`${v.vessel_id}-${v.port_id ?? v.port_name}-${i}`} className={isWinner ? 'recommended' : ''}>
                 <td>
                   <div style={{ fontWeight: 500 }}>{v.name}</div>
-                  {i === 0 && <span className="badge badge-active" style={{ marginTop: '3px' }}>RECOMMENDED</span>}
+                  {isWinner && <span className="badge badge-active" style={{ marginTop: '3px' }}>RECOMMENDED</span>}
                 </td>
                 <td style={{ textTransform: 'capitalize' }}>{v.vessel_class}</td>
                 <td>{formatNum(v.capacity)}</td>
@@ -100,7 +110,8 @@ const VesselComparison = ({ feasibility, loading }) => {
                   ${v.daily_hire_rate?.toLocaleString()}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         {feasibility.feasible_vessels?.length === 0 && (
@@ -122,7 +133,8 @@ const VesselComparison = ({ feasibility, loading }) => {
                 <div className="bar-track">
                   <div className="bar-fill" style={{
                     width: `${p.overall_score * 100}%`,
-                    background: i === 0 ? 'var(--primary)' : 'var(--surface-4)'
+                    background: 'var(--primary)',
+                    opacity: i === 0 ? 1 : 0.45
                   }} />
                 </div>
                 <span className="bar-value">{(p.overall_score * 100).toFixed(0)}</span>

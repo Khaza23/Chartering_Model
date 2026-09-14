@@ -47,7 +47,12 @@ def sync_freight() -> int:
             _log_run("freight", "skipped", 0, "Empty route-rate frame")
             return 0
         # Only upsert dates not already covered by live source to avoid rewriting history
-        existing = pd.read_sql("SELECT date, route, vessel_class FROM freight_rates WHERE source LIKE 'live/%'", engine)
+        from sqlalchemy import text as _text
+        existing = pd.read_sql(
+            _text("SELECT date, route, vessel_class FROM freight_rates WHERE source LIKE :pat"),
+            engine,
+            params={"pat": "live/%"},
+        )
         if not existing.empty:
             existing["date"] = pd.to_datetime(existing["date"]).dt.date
             df["date"] = pd.to_datetime(df["date"]).dt.date
