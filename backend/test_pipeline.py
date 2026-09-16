@@ -11,8 +11,7 @@ params = {
     'destination': 'Paradip',
     'laycan_start': (today + timedelta(days=3)).strftime('%Y-%m-%d'),
     'laycan_end': (today + timedelta(days=13)).strftime('%Y-%m-%d'),
-    'required_voyages': 6,
-    'current_freight_rate': 22.0
+    'required_voyages': 6
 }
 
 def post(endpoint, payload):
@@ -32,7 +31,6 @@ feas = post('feasibility', params)
 print(f"  -> Feasible vessels: {feas['summary']['feasible_count']}")
 
 cost = post('cost', {
-    'freight_rate': params['current_freight_rate'],
     'cargo_quantity': params['cargo_quantity'],
     'vessel_id': 1,
     'port_name': params['destination'],

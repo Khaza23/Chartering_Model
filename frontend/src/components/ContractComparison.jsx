@@ -40,7 +40,15 @@ const ContractComparison = ({ costData, loading }) => {
       <div className="two-col">
         <div className="card">
           <div className="card-header">
-            <div className="card-title">Spot Cost Breakdown</div>
+            <div>
+              <div className="card-title">Spot Cost Breakdown</div>
+              {costData.fleet?.num_ships > 1 && (
+                <div className="card-subtitle">
+                  Fleet total: {costData.fleet.num_ships} × {(costData.fleet.per_ship_quantity ?? 0).toLocaleString()} MT
+                  ({(costData.fleet.total_quantity ?? 0).toLocaleString()} MT)
+                </div>
+              )}
+            </div>
           </div>
           <div className="cost-breakdown">
             {breakdown && Object.entries(breakdown).map(([key, val]) => (
@@ -102,7 +110,10 @@ const ContractComparison = ({ costData, loading }) => {
       <div className="card" style={{ marginTop: '20px' }}>
         <div className="card-header">
           <div className="card-title">Contract Options</div>
-          <div className="card-subtitle">Spot vs multi-voyage contracts</div>
+          <div className="card-subtitle">
+            Spot vs multi-voyage contracts
+            {costData.fleet?.num_ships > 1 ? ` · fleet totals (${costData.fleet.num_ships} ships)` : ''}
+          </div>
         </div>
         <table className="contract-table">
           <thead>

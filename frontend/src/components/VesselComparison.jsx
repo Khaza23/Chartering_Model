@@ -55,6 +55,11 @@ const VesselComparison = ({ feasibility, recommendation, loading }) => {
           <div className="card-subtitle">
             One row per feasible vessel-port combination — same vessel scores differently per port (draft/LOA limits).
             RECOMMENDED marks the Decision-tab winner (cost + risk).
+            {feasibility.fleet && (
+              <> Parcel: {(feasibility.fleet.per_ship_quantity ?? 0).toLocaleString()} MT/ship
+                ({feasibility.fleet.num_ships} ship{(feasibility.fleet.num_ships ?? 1) > 1 ? 's' : ''} ·{' '}
+                {(feasibility.fleet.total_quantity ?? 0).toLocaleString()} MT total).</>
+            )}
           </div>
         </div>
         <table className="vessel-table">

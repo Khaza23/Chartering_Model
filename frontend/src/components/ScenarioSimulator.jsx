@@ -13,17 +13,31 @@ const getDefaultDates = () => {
   };
 };
 
+const REF_PARCEL_MT = 75000;
+
+const suggestShips = (total) => {
+  const t = Number(total) || 0;
+  if (t <= 0) return 1;
+  return Math.max(1, Math.min(20, Math.ceil(t / REF_PARCEL_MT)));
+};
+
 const ScenarioSimulator = ({ onRunScenario }) => {
   const defaultDates = getDefaultDates();
   const [params, setParams] = useState({
     cargo_quantity: 75000,
+    num_ships: 1,
     origin: 'Australia',
     destination: 'Paradip',
     laycan_start: defaultDates.start,
     laycan_end: defaultDates.end,
-    required_voyages: 6,
-    current_freight_rate: 22.0
+    required_voyages: 6
   });
+
+  const totalQty = Number(params.cargo_quantity) || 0;
+  const shipCount = Math.max(1, Math.min(20, Number(params.num_ships) || 1));
+  const perShip = totalQty > 0 ? Math.round(totalQty / shipCount) : 0;
+  const suggested = suggestShips(totalQty);
+  const showSuggest = totalQty > 0 && suggested !== shipCount;
 
   const [scenarios, setScenarios] = useState([
     { name: 'Freight +10%', freight_change_pct: 10, bunker_change_pct: 0, congestion_change: 0, delay_change_hours: 0 },
@@ -38,16 +52,20 @@ const ScenarioSimulator = ({ onRunScenario }) => {
   const runScenario = async (scenario) => {
     setLoading(true);
     try {
+      const baseParams = {
+        cargo_quantity: Number(params.cargo_quantity),
+        num_ships: Math.max(1, Math.min(20, Number(params.num_ships) || 1)),
+        origin: params.origin,
+        destination: params.destination,
+        laycan_start: params.laycan_start,
+        laycan_end: params.laycan_end,
+        required_voyages: Number(params.required_voyages),
+      };
       const response = await fetch(`${API_BASE}/scenario`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          base_params: {
-            ...params,
-            cargo_quantity: Number(params.cargo_quantity),
-            required_voyages: Number(params.required_voyages),
-            current_freight_rate: Number(params.current_freight_rate)
-          },
+          base_params: baseParams,
           freight_change_pct: scenario.freight_change_pct,
           bunker_change_pct: scenario.bunker_change_pct,
           congestion_change: scenario.congestion_change,
@@ -80,10 +98,34 @@ const ScenarioSimulator = ({ onRunScenario }) => {
           </div>
         </div>
         <div className="input-grid">
-          <div className="input-group">
-            <label>Cargo Quantity (MT)</label>
-            <input type="number" value={params.cargo_quantity}
-              onChange={e => setParams(p => ({ ...p, cargo_quantity: e.target.value }))} />
+          <div className="input-group cargo-fleet-span">
+            <label>Total Cargo (MT) · Ships</label>
+            <div className="cargo-fleet-row">
+              <input type="number" min="1000" step="1000" value={params.cargo_quantity}
+                onChange={e => setParams(p => ({ ...p, cargo_quantity: e.target.value }))}
+                title="Total cargo to move — split across ships"
+                style={{ flex: 1 }} />
+              <div className="ships-stepper">
+                <button type="button" className="stepper-btn" aria-label="Fewer ships"
+                  onClick={() => setParams(p => ({ ...p, num_ships: Math.max(1, (Number(p.num_ships) || 1) - 1) }))}>−</button>
+                <input type="number" min="1" max="20" step="1" value={params.num_ships}
+                  onChange={e => setParams(p => ({ ...p, num_ships: e.target.value }))}
+                  title="Number of ships (1–20)" aria-label="Number of ships" />
+                <button type="button" className="stepper-btn" aria-label="More ships"
+                  onClick={() => setParams(p => ({ ...p, num_ships: Math.min(20, (Number(p.num_ships) || 1) + 1) }))}>+</button>
+              </div>
+            </div>
+            <div className="fleet-hint">
+              <span>≈ {perShip.toLocaleString()} MT / ship</span>
+              {showSuggest && (
+                <>
+                  <span className="fleet-dot">·</span>
+                  <span>Suggested: {suggested} ship{suggested > 1 ? 's' : ''}</span>
+                  <button type="button" className="fleet-apply"
+                    onClick={() => setParams(p => ({ ...p, num_ships: suggested }))}>Apply</button>
+                </>
+              )}
+            </div>
           </div>
           <div className="input-group">
             <label>Origin</label>
@@ -102,11 +144,6 @@ const ScenarioSimulator = ({ onRunScenario }) => {
               <option>Vizag</option>
               <option>Mundra</option>
             </select>
-          </div>
-          <div className="input-group">
-            <label>Current Freight Rate ($/MT)</label>
-            <input type="number" step="0.1" value={params.current_freight_rate}
-              onChange={e => setParams(p => ({ ...p, current_freight_rate: e.target.value }))} />
           </div>
         </div>
       </div>
@@ -173,7 +210,7 @@ const ScenarioSimulator = ({ onRunScenario }) => {
             </div>
           </div>
 
-          <div className="card" style={{ border: '1px solid rgba(30,64,175,0.15)' }}>
+          <div className="card card-accent" style={{ background: 'var(--primary-light)' }}>
             <div className="card-header">
               <div className="card-title">{results.scenario_name}</div>
               <span className="badge badge-medium">SCENARIO</span>

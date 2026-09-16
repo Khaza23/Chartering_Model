@@ -16,11 +16,11 @@ const WhyPanel = ({ recommendation }) => {
 
   const importanceItems = [
     { key: 'freight_trend', label: 'Freight Trend', color: 'var(--primary)' },
-    { key: 'contract_discount', label: 'Contract Discount', color: '#475569' },
+    { key: 'contract_discount', label: 'Contract Discount', color: 'var(--ink-muted)' },
     { key: 'port_congestion', label: 'Port Congestion', color: 'var(--warning)' },
     { key: 'vessel_availability', label: 'Vessel Availability', color: 'var(--success)' },
     { key: 'bunker_price', label: 'Bunker Price', color: 'var(--danger)' },
-    { key: 'laycan_flexibility', label: 'Laycan Flexibility', color: '#64748b' }
+    { key: 'laycan_flexibility', label: 'Laycan Flexibility', color: 'var(--ink-subtle)' }
   ];
 
   const getActionLabel = (action) => {
