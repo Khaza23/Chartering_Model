@@ -1,9 +1,10 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { ForecastSkeleton } from './Skeleton';
 
 const ForecastView = ({ forecast, loading }) => {
   if (loading) {
-    return <div className="loading-spinner"><div className="spinner" /></div>;
+    return <ForecastSkeleton />;
   }
 
   if (!forecast) {

@@ -1,9 +1,10 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { ContractsSkeleton } from './Skeleton';
 
 const ContractComparison = ({ costData, loading }) => {
   if (loading) {
-    return <div className="loading-spinner"><div className="spinner" /></div>;
+    return <ContractsSkeleton />;
   }
 
   if (!costData) {

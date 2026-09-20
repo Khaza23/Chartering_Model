@@ -1,8 +1,9 @@
 import React from 'react';
+import { VesselsSkeleton } from './Skeleton';
 
 const VesselComparison = ({ feasibility, recommendation, loading }) => {
   if (loading) {
-    return <div className="loading-spinner"><div className="spinner" /></div>;
+    return <VesselsSkeleton />;
   }
 
   if (!feasibility) {

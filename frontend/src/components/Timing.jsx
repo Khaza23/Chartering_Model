@@ -1,4 +1,5 @@
 import React from 'react';
+import { TimingSkeleton } from './Skeleton';
 
 const Timing = ({ timing, loading, onAssessTiming, hasParams }) => {
   const formatCost = (val) => {
@@ -39,11 +40,7 @@ const Timing = ({ timing, loading, onAssessTiming, hasParams }) => {
         )}
       </div>
 
-      {loading && (
-        <div className="loading-spinner">
-          <div className="spinner" />
-        </div>
-      )}
+      {loading && <TimingSkeleton />}
 
       {!loading && !timing && (
         <div className="empty-state">

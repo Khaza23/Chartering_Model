@@ -1,62 +1,9 @@
-[DB] No DATABASE_URL set — using SQLite at C:\Users\LENOVO\Desktop\test2\backend\maritime.db
-[STARTUP] Database has 35072 freight rate records — skipping seed.
-[STARTUP] SYNC_ON_BOOT sync: {'freight': {'dataset': 'freight', 'rows_upserted': 0}, 'bunker': {'dataset': 'bunker', 'rows_upserted': 0}, 'commodities': {'dataset': 'commodities', 'rows_upserted': 0}, 'congestion': {'dataset': 'congestion', 'rows_upserted': 5}}
-[AIS] Background worker thread started.
-[AIS] Connecting to aisstream.io...
+[DB] No DATABASE_URL set — using SQLite at C:\Users\LENOVO\Desktop\Chartering_Model\backend\maritime.db
+[STARTUP] Database has 72768 freight rate records — skipping seed.
+[vesselapi] No VESSELAPI_KEY configured.
+[marinesia] No MARINESIA_KEY configured.
+[ingestion] No real vessels from Marinesia — using synthetic fallback.
+[STARTUP] SYNC_ON_BOOT sync: {'freight': {'dataset': 'freight', 'rows_upserted': 0}, 'bunker': {'dataset': 'bunker', 'rows_upserted': 0}, 'commodities': {'dataset': 'commodities', 'rows_upserted': 0}, 'congestion': {'dataset': 'congestion', 'rows_upserted': 5}, 'vessels': {'dataset': 'vessels', 'rows_upserted': 0}}
+[AIS] No AISSTREAM_KEY configured — live AIS worker skipped (will use database history).
 [SYNC] apscheduler not installed (No module named 'apscheduler') — scheduler skipped.
-[AIS] Connected and subscribed to port bounding boxes.
-INFO:     127.0.0.1:61547 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61547 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59292 - "POST /api/sync?dataset=bunker HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55129 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62940 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62349 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65458 - "POST /api/optimize HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65459 - "POST /api/feasibility HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65462 - "POST /api/forecast HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65463 - "POST /api/cost HTTP/1.1" 200 OK
-[AIS] Connection dropped: no close frame received or sent. Reconnecting in 15s...
-[AIS] Connecting to aisstream.io...
-[AIS] Connected and subscribed to port bounding boxes.
-[AIS] Connection dropped: no close frame received or sent. Reconnecting in 15s...
-[AIS] Connecting to aisstream.io...
-[AIS] Connected and subscribed to port bounding boxes.
-INFO:     127.0.0.1:55888 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55898 - "POST /api/optimize HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53635 - "POST /api/feasibility HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53637 - "POST /api/cost HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53639 - "POST /api/forecast HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53646 - "POST /api/optimize HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53656 - "POST /api/scenario HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53846 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53851 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61031 - "POST /api/forecast HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61030 - "POST /api/optimize HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61032 - "POST /api/feasibility HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61033 - "POST /api/cost HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65007 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65009 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58822 - "POST /api/optimize HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58825 - "POST /api/forecast HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58826 - "POST /api/feasibility HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58827 - "POST /api/cost HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51982 - "POST /api/optimize HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51987 - "POST /api/feasibility HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51986 - "POST /api/forecast HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51988 - "POST /api/cost HTTP/1.1" 200 OK
-[AIS] Connection dropped: no close frame received or sent. Reconnecting in 15s...
-[AIS] Connecting to aisstream.io...
-[AIS] Connected and subscribed to port bounding boxes.
-INFO:     127.0.0.1:64813 - "HEAD /docs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59914 - "GET /api/ports HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58309 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58311 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58320 - "GET /api/ports HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55937 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64820 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62552 - "POST /api/optimize HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62553 - "POST /api/forecast HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62554 - "POST /api/feasibility HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62555 - "POST /api/cost HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52513 - "GET /api/data-status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52515 - "GET /api/data-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51325 - "GET /api/health HTTP/1.1" 200 OK

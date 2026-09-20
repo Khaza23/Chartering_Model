@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DecisionSkeleton } from './Skeleton';
 
 const getDefaultDates = () => {
   const start = new Date();
@@ -158,11 +159,7 @@ const ExecutiveDecision = ({ onRunAnalysis, recommendation, loading }) => {
         </div>
       </div>
 
-      {loading && (
-        <div className="loading-spinner">
-          <div className="spinner" />
-        </div>
-      )}
+      {loading && <DecisionSkeleton />}
 
       {!loading && !recommendation && (
         <div className="empty-state">

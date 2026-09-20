@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ScenarioSkeleton } from './Skeleton';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -173,9 +174,7 @@ const ScenarioSimulator = ({ onRunScenario }) => {
         </div>
       </div>
 
-      {loading && (
-        <div className="loading-spinner"><div className="spinner" /></div>
-      )}
+      {loading && <ScenarioSkeleton />}
 
       {!loading && results && (
         <div className="two-col">
