@@ -36,48 +36,60 @@ function App() {
       .catch(() => {});
   }, []);
 
+  const fetchJSON = async (url, body) => {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.detail || `Request failed: ${res.status} ${url}`);
+    }
+    if (data && data.detail && !data.route && !data.action && !data.feasible_vessels && !data.total_cost) {
+      throw new Error(data.detail);
+    }
+    return data;
+  };
+
   const runAnalysis = async (params) => {
     setLoading(true);
     setError(null);
+    setLastParams(params);
     try {
-      const [optRes, foreRes, feasRes, costRes] = await Promise.all([
-        fetch(`${API_BASE}/optimize`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params)
-        }).then(r => r.json()),
-        fetch(`${API_BASE}/forecast`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            route: `${params.origin}-${params.destination}`,
-            vessel_class: 'panamax',
-            forecast_days: 30
-          })
-        }).then(r => r.json()),
-        fetch(`${API_BASE}/feasibility`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params)
-        }).then(r => r.json()),
-        fetch(`${API_BASE}/cost`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cargo_quantity: params.cargo_quantity,
-            num_ships: params.num_ships || 1,
-            vessel_id: 1,
-            port_name: params.destination,
-            origin: params.origin
-          })
-        }).then(r => r.json())
+      const forecastBody = {
+        route: `${params.origin}-${params.destination}`,
+        vessel_class: 'panamax',
+        forecast_days: 30
+      };
+      const costBody = {
+        cargo_quantity: params.cargo_quantity,
+        num_ships: params.num_ships || 1,
+        vessel_id: 1,
+        port_name: params.destination,
+        origin: params.origin
+      };
+      const [optSettled, foreSettled, feasSettled, costSettled] = await Promise.allSettled([
+        fetchJSON(`${API_BASE}/optimize`, params),
+        fetchJSON(`${API_BASE}/forecast`, forecastBody),
+        fetchJSON(`${API_BASE}/feasibility`, params),
+        fetchJSON(`${API_BASE}/cost`, costBody)
       ]);
 
-      setRecommendation(optRes);
-      setForecast(foreRes);
-      setFeasibility(feasRes);
-      setCostData(costRes);
-      setLastParams(params);
+      if (optSettled.status === 'fulfilled') setRecommendation(optSettled.value);
+      if (foreSettled.status === 'fulfilled') setForecast(foreSettled.value);
+      if (feasSettled.status === 'fulfilled') setFeasibility(feasSettled.value);
+      if (costSettled.status === 'fulfilled') setCostData(costSettled.value);
+
+      const failures = [
+        ['optimize', optSettled],
+        ['forecast', foreSettled],
+        ['feasibility', feasSettled],
+        ['cost', costSettled]
+      ].filter(([, r]) => r.status === 'rejected');
+      if (failures.length > 0) {
+        setError(failures.map(([name, r]) => `${name}: ${r.reason?.message}`).join(' | '));
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -168,7 +180,12 @@ function App() {
           />
         )}
         {activeScreen === 'forecast' && (
-          <ForecastView forecast={forecast} loading={loading} />
+          <ForecastView
+            forecast={forecast}
+            loading={loading}
+            hasParams={!!lastParams}
+            onRunAnalysis={lastParams ? () => runAnalysis(lastParams) : null}
+          />
         )}
         {activeScreen === 'vessels' && (
           <VesselComparison feasibility={feasibility} recommendation={recommendation} loading={loading} />

@@ -2,17 +2,31 @@ import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { ForecastSkeleton } from './Skeleton';
 
-const ForecastView = ({ forecast, loading }) => {
+const ForecastView = ({ forecast, loading, hasParams, onRunAnalysis }) => {
   if (loading) {
     return <ForecastSkeleton />;
   }
 
-  if (!forecast) {
+  if (!forecast || forecast.detail) {
     return (
       <div className="empty-state">
         <div className="empty-state-icon">📊</div>
         <div className="empty-state-text">No forecast data</div>
-        <div className="empty-state-sub">Run an analysis from the Decision tab first</div>
+        <div className="empty-state-sub">
+          {forecast?.detail ? `Last forecast failed: ${forecast.detail}` : 'Run an analysis from the Decision tab first'}
+        </div>
+        {onRunAnalysis && (
+          <button
+            type="button"
+            className="btn-primary"
+            style={{ marginTop: '12px' }}
+            onClick={onRunAnalysis}
+            disabled={loading || !hasParams}
+            title={hasParams ? 'Re-run analysis with last parameters' : 'Go to Decision tab and click Run Analysis first'}
+          >
+            {hasParams ? 'Run Forecast' : 'Go to Decision tab first'}
+          </button>
+        )}
       </div>
     );
   }
