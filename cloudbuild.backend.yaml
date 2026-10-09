@@ -1,0 +1,6 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-f', 'Dockerfile.backend.gcp', '-t', 'asia-south1-docker.pkg.dev/project-7deab4fd-2ae4-45a3-a64/maritime/backend:latest', '.']
+images:
+- 'asia-south1-docker.pkg.dev/project-7deab4fd-2ae4-45a3-a64/maritime/backend:latest'
+timeout: 1200s

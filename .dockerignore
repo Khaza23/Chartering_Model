@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.log
+.env
+node_modules/
+dist/
+.git/
+.codebase-memory/
+.playwright-mcp/
+awesome-design-md/
+docs/
+*.heapsnapshot
+trace*.json*

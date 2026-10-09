@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { GradientDots } from './components/ui/gradient-dots';
 import DataStatus from './components/DataStatus';
 import ExecutiveDecision from './components/ExecutiveDecision';
 import ForecastView from './components/ForecastView';
@@ -127,6 +128,10 @@ function App() {
 
   return (
     <div className="app">
+      {/* Animated gradient-dots app background (pointer-events none, content stays interactive) */}
+      <div className="app-background" aria-hidden="true">
+        <GradientDots duration={20} />
+      </div>
       <nav className="top-nav">
         <div className="nav-left">
           <span className="brand">SAIL</span>

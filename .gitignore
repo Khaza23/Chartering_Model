@@ -15,3 +15,6 @@ GoogleCloudSDKInstaller.exe
 opencode.json
 stitch_req.json
 stitch_resp.json
+.playwright-mcp/
+graphify-out/
+.codebase-memory/

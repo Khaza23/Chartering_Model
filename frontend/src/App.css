@@ -276,6 +276,42 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  position: relative;
+  isolation: isolate;
+}
+
+/* ── GradientDots app background ──
+   Fixed full-viewport animated layer behind nav + content.
+   pointer-events:none keeps every control clickable. Full opacity so the
+   animated gradient dots are clearly visible (demo look). */
+.app-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+  overflow: hidden;
+}
+
+.app-background .gradient-dots {
+  position: absolute;
+  inset: 0;
+}
+
+[data-theme="dark"] .app-background {
+  opacity: 1;
+}
+
+.top-nav,
+.main-content {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-background {
+    display: none;
+  }
 }
 
 /* ── Navigation ── */
