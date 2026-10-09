@@ -1,0 +1,6 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-f', 'Dockerfile.frontend.gcp', '--build-arg', 'VITE_API_URL=https://backend-299101960516.asia-south1.run.app/api', '-t', 'asia-south1-docker.pkg.dev/project-7deab4fd-2ae4-45a3-a64/maritime/frontend:latest', '.']
+images:
+- 'asia-south1-docker.pkg.dev/project-7deab4fd-2ae4-45a3-a64/maritime/frontend:latest'
+timeout: 600s
